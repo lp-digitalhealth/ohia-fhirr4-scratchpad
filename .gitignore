@@ -1,0 +1,11 @@
+# Windows files
+Thumbs.db
+Desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+
+# Local validation & logs
+*.log
+validation-results/

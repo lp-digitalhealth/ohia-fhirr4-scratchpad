@@ -1,0 +1,12 @@
+{
+  "resourceType": "StructureDefinition",
+  "id": "example-patient-profile",
+  "url": "http://lp-digitalhealth/fhir/StructureDefinition/example-patient",
+  "status": "draft",
+  "fhirVersion": "4.0.1",
+  "kind": "resource",
+  "abstract": false,
+  "type": "Patient",
+  "baseDefinition": "http://hl7.org",
+  "derivation": "constraint"
+}
