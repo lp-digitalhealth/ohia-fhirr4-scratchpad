@@ -6,7 +6,7 @@ Welcome to the interface design repository. This repository acts as our design-f
 
 ---
 
-## 🚦 Collaboration Workflow
+## Collaboration Workflow
 
 1. **Propose / Edit:** Submit a Pull Request (PR) adding or modifying JSON files in the `interfaces/` or `examples/` folders.
 2. **Validate:** Ensure all JSON files use R6 structures and explicitly state `"fhirVersion": "6.0.0"` where applicable.
@@ -14,23 +14,23 @@ Welcome to the interface design repository. This repository acts as our design-f
 
 ---
 
-## 🗺️ API Interface Directory
-
-### 👤 Patient Identity & Demographics
+## API Interface Directory
+## Example: 
+### Patient Identity & Demographics
 * **FHIR Resource:** `Patient` (R6 Core)
 * **Interface Schema:** [interfaces/patient-interface.json](./interfaces/patient-interface.json)
 * **Mock Payload:** [examples/patient-payload-mock.json](./examples/patient-payload-mock.json)
-* **Status:** 🟡 Under Active Review
+* **Status:**  Under Active Review
 
-### 🩺 Clinical Observations & Vitals
+### Clinical Observations & Vitals
 * **FHIR Resource:** `Observation` (R6 Core - Note R6 Vital Signs Profile changes)
 * **Interface Schema:** [staging-transition/observation-interface.json](./staging-transition/observation-interface.json)
 * **Mock Payload:** [examples/observation-payload-mock.json](./examples/observation-payload-mock.json)
-* **Status:** ✅ Consensus Reached
+* **Status:**  Consensus Reached
 
 ---
 
-## 📂 Repository Structure Reference
+##  Repository Structure Reference
 
 * **`/interfaces`**: The drop zone for proposed FHIR R6 definitional resources (e.g., CapabilityStatements, custom Profiles).
 * **`/examples`**: The drop zone for mock R6 payload instances.
