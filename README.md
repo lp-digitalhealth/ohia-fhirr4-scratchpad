@@ -1,8 +1,8 @@
-# 🚀 FHIR R6 Interface Scratchpad
+# FHIR R6 Interface Scratchpad
 
 Welcome to the interface design repository. This repository acts as our design-first API directory (similar to Swagger) to establish consensus on our payloads before we build a formal Implementation Guide (IG).
 
-⚠️ **Target Version:** FHIR R6 (`6.0.0`) 
+**Target Version:** FHIR R6 (`6.0.0`) 
 
 ---
 
