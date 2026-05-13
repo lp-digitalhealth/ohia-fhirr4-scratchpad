@@ -36,3 +36,5 @@ Welcome to the interface design repository. This repository acts as our design-f
 * **`/examples`**: The drop zone for mock R6 payload instances.
 * **`/staging-transition`**: The landing zone for finalized files that have achieved full team consensus.
 * **`/terminology`**: The terminology used for the service
+* **`/use cases`**: The use cases to be used for the IG
+
