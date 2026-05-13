@@ -35,3 +35,4 @@ Welcome to the interface design repository. This repository acts as our design-f
 * **`/interfaces`**: The drop zone for proposed FHIR R6 definitional resources (e.g., CapabilityStatements, custom Profiles).
 * **`/examples`**: The drop zone for mock R6 payload instances.
 * **`/staging-transition`**: The landing zone for finalized files that have achieved full team consensus.
+* **`/terminology`**: The terminology used for the service
