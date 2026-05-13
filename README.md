@@ -1,4 +1,4 @@
-# OHIA FHIR R4 Scratchpad
+# OHIA FHIR R6 Scratchpad
 Working repository for drafting FHIR R4 API definitions.
 
 ## Project Details
