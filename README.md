@@ -1,8 +1,8 @@
-# FHIR R6 Interface Scratchpad
+# FHIR R4 Interface Scratchpad
 
 Welcome to the interface design repository. This repository acts as our design-first API directory (similar to Swagger) to establish consensus on our payloads before we build a formal Implementation Guide (IG).
 
-**Target Version:** FHIR R6 (`6.0.0`) 
+**Target Version:** FHIR R4
 
 ---
 
@@ -17,13 +17,13 @@ Welcome to the interface design repository. This repository acts as our design-f
 ## API Interface Directory
 ## Example: 
 ### Patient Identity & Demographics
-* **FHIR Resource:** `Patient` (R6 Core)
+* **FHIR Resource:** `Patient` (R4 Core)
 * **Interface Schema:** [interfaces/patient-interface.json](./interfaces/patient-interface.json)
 * **Mock Payload:** [examples/patient-payload-mock.json](./examples/patient-payload-mock.json)
 * **Status:**  Under Active Review
 
 ### Clinical Observations & Vitals
-* **FHIR Resource:** `Observation` (R6 Core - Note R6 Vital Signs Profile changes)
+* **FHIR Resource:** `Observation` (R4 Core - Note R4 Vital Signs Profile changes)
 * **Interface Schema:** [staging-transition/observation-interface.json](./staging-transition/observation-interface.json)
 * **Mock Payload:** [examples/observation-payload-mock.json](./examples/observation-payload-mock.json)
 * **Status:**  Consensus Reached
