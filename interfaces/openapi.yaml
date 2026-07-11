@@ -1,0 +1,791 @@
+openapi: 3.0.3
+info:
+  title: Oral Health Data Exchange (ODE) API
+  version: 0.2.0-draft
+  description: >
+    REST contract for the **Oral Health Data Exchange (ODE)** — a definitive oral-health
+    data model ("USCDI + Dental"), the oral-health analog of US Core. Almost every resource
+    inherits from a US Core profile; only `Task` (the COW workflow object) and `List` (the
+    medication list) inherit base FHIR.
+
+
+    **Three referral profiles, one per direction that involves dental** (like CARIN Blue
+    Button's per-claim-type family):
+
+    - `ODEMedicalToDentalReferral` — medical system refers to a dentist.
+
+    - `ODEDentalToDentalReferral` — dentist refers to a dentist.
+
+    - `ODEDentalToMedicalReferral` — dentist refers to a physician (e.g. UC05 OSA screen).
+
+
+    **Unifying coding rule** — each referral is coded for the world the *receiving clinician*
+    acts and bills in: where a medical party acts/bills (medical&#8594;dental, dental&#8594;medical)
+    **ICD-10-CM + CPT/HCPCS are must-support and CDT is not**; **dental&#8594;dental makes CDT
+    must-support** (SNODENT should). SNODENT rides along as should-support to preserve a
+    dental finding into a medical context.
+
+
+    **Imaging by direction** — dental&#8594;dental uses **support-a-pull** (receiver retrieves via
+    CDex); whenever the **receiver is on the medical side** (medical&#8594;dental, dental&#8594;medical)
+    it exposes no inbound pull, so images follow as a **separate `$submit-attachment` push**
+    after the referral. The clinical substance (screening result, note) always travels in
+    the referral.
+
+
+    Schemas are representative (key elements plus examples); authoritative element-level
+    conformance lives in the ODE profiles referenced by each schema's `x-fhir-profile`.
+  contact:
+    name: Oral Health Interoperability Alliance (OHIA)
+    url: https://oralhealthalliance.net
+externalDocs:
+  description: ODE IG profiles & conformance (IG-development spec)
+  url: https://oralhealthalliance.net/fhir
+
+servers:
+  - url: https://ode.example.org/fhir
+    description: ODE Native FHIR base (example)
+
+tags:
+  - name: Capability
+    description: Server capability discovery
+  - name: Referral
+    description: The referral order (ServiceRequest) — three directional profiles
+  - name: Workflow
+    description: The referral Task — the ODE/COW workflow object and source of truth for state
+  - name: Medications
+    description: The medication list (List + US Core MedicationRequest)
+  - name: Attachments
+    description: >
+      Supporting documents & imaging. Dental&#8594;dental = support-a-pull (read/search below);
+      medical-side receivers = separate $submit-attachment push after the referral.
+  - name: Notifications
+    description: Topic-based Subscriptions on referral status
+
+security:
+  - smartOnFhir: []
+
+paths:
+  /metadata:
+    get:
+      tags: [Capability]
+      operationId: getCapabilityStatement
+      summary: Fetch the server CapabilityStatement
+      security: []
+      responses:
+        '200':
+          description: CapabilityStatement
+          content:
+            application/fhir+json:
+              schema: { type: object }
+
+  /:
+    post:
+      tags: [Referral]
+      operationId: submitReferralBundle
+      summary: Submit a referral as a transaction Bundle
+      description: >
+        POST a transaction `Bundle` containing one referral `ServiceRequest` (one of the
+        three directional profiles), one `ODEReferralTask` (status=requested), and the US
+        Core clinical context (Patient, Practitioner/Organization, Condition,
+        MedicationRequest, the `ODEMedicationList`, AllergyIntolerance). For dental&#8594;medical,
+        the screening result (Observation + RiskAssessment) travels here too. This is what
+        the 360X bridge produces from a PCC-55.
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema: { $ref: '#/components/schemas/Bundle' }
+            examples:
+              transactionBundle: { $ref: '#/components/examples/referralBundle' }
+      responses:
+        '200':
+          description: transaction-response Bundle
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/Bundle' }
+        '400': { $ref: '#/components/responses/OperationOutcome' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /ServiceRequest:
+    post:
+      tags: [Referral]
+      operationId: createReferral
+      summary: Create a referral (one of three directional profiles)
+      description: >
+        Create a single referral. Select the directional profile via `meta.profile`; each
+        has its own must-support.
+        **Medical&#8594;dental:** ICD-10-CM `reasonCode` + CPT/HCPCS `code`, no CDT.
+        **Dental&#8594;dental:** CDT `code` + tooth `bodySite` required, SNODENT should, no medical codes required.
+        **Dental&#8594;medical:** ICD-10-CM `reasonCode` + CPT/HCPCS `code` (SNODENT should), and the screening result in `supportingInfo`.
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ODEMedicalToDentalReferral'
+                - $ref: '#/components/schemas/ODEDentalToDentalReferral'
+                - $ref: '#/components/schemas/ODEDentalToMedicalReferral'
+            examples:
+              medicalToDental: { $ref: '#/components/examples/medicalToDentalReferral' }
+              dentalToDental:  { $ref: '#/components/examples/dentalToDentalReferral' }
+              dentalToMedical: { $ref: '#/components/examples/dentalToMedicalReferral' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/fhir+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ODEMedicalToDentalReferral'
+                  - $ref: '#/components/schemas/ODEDentalToDentalReferral'
+                  - $ref: '#/components/schemas/ODEDentalToMedicalReferral'
+        '400': { $ref: '#/components/responses/OperationOutcome' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    get:
+      tags: [Referral]
+      operationId: searchReferral
+      summary: Search referrals
+      parameters:
+        - $ref: '#/components/parameters/referralId'
+        - $ref: '#/components/parameters/patient'
+        - $ref: '#/components/parameters/status'
+      responses:
+        '200':
+          description: searchset Bundle of ServiceRequest
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/Bundle' }
+
+  /ServiceRequest/{id}:
+    get:
+      tags: [Referral]
+      operationId: readReferral
+      summary: Read a referral by id
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: ServiceRequest (one of the three directional profiles)
+          content:
+            application/fhir+json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ODEMedicalToDentalReferral'
+                  - $ref: '#/components/schemas/ODEDentalToDentalReferral'
+                  - $ref: '#/components/schemas/ODEDentalToMedicalReferral'
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /Task:
+    get:
+      tags: [Workflow]
+      operationId: searchTask
+      summary: Search referral Tasks (follow status)
+      description: The Task is the single source of truth for referral state. Search by `referral-id` to follow a referral end to end.
+      parameters:
+        - $ref: '#/components/parameters/referralId'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/patient'
+      responses:
+        '200':
+          description: searchset Bundle of Task
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/Bundle' }
+
+  /Task/{id}:
+    get:
+      tags: [Workflow]
+      operationId: readTask
+      summary: Read a Task by id
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: Task
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/ODEReferralTask' }
+              examples:
+                task: { $ref: '#/components/examples/referralTask' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Workflow]
+      operationId: updateTask
+      summary: Advance the workflow (full update)
+      description: >
+        Move the referral through the loop:
+        `requested -> accepted -> in-progress -> completed` (or `rejected` / `cancelled`).
+        Each status change is what the bridge mirrors outbound as a 360X transaction
+        (PCC-56/57/58/59).
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema: { $ref: '#/components/schemas/ODEReferralTask' }
+            examples:
+              accept:
+                summary: Accept the referral
+                value:
+                  resourceType: Task
+                  id: task-REF-2026-002
+                  status: accepted
+                  intent: order
+                  businessStatus:
+                    coding:
+                      - system: http://ohia-codes.org/CodeSystem/ode-referral-sub-status
+                        code: scheduled
+                        display: Scheduled
+      responses:
+        '200':
+          description: Updated Task
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/ODEReferralTask' }
+        '400': { $ref: '#/components/responses/OperationOutcome' }
+    patch:
+      tags: [Workflow]
+      operationId: patchTask
+      summary: Patch Task status
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      requestBody:
+        required: true
+        content:
+          application/json-patch+json:
+            schema:
+              type: array
+              items: { type: object }
+            example:
+              - { op: replace, path: /status, value: in-progress }
+      responses:
+        '200':
+          description: Patched Task
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/ODEReferralTask' }
+
+  /MedicationRequest:
+    get:
+      tags: [Medications]
+      operationId: getMedicationList
+      summary: Retrieve the medication list (by patient)
+      description: >
+        The patient's active medications — the medication-list entries. Returns a searchset
+        Bundle of US Core MedicationRequest (ordered and patient-reported via
+        `reportedBoolean`). The aggregated list is also available as `List` (see
+        `GET /List/{id}`), and travels inside the referral Bundle as `ODEMedicationList`.
+      parameters:
+        - $ref: '#/components/parameters/patient'
+        - name: status
+          in: query
+          schema: { type: string, example: active }
+      responses:
+        '200':
+          description: searchset Bundle of MedicationRequest
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/Bundle' }
+              examples:
+                medicationList: { $ref: '#/components/examples/medicationListBundle' }
+
+  /List/{id}:
+    get:
+      tags: [Medications]
+      operationId: readMedicationList
+      summary: Read the medication List resource
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: ODEMedicationList
+          content:
+            application/fhir+json:
+              schema: { $ref: '#/components/schemas/ODEMedicationList' }
+
+  /DocumentReference/{id}:
+    get:
+      tags: [Attachments]
+      operationId: readDocumentReference
+      summary: Retrieve a supporting document/image (dental&#8594;dental pull)
+      description: >
+        The **support-a-pull** path for **dental&#8594;dental**: the referral references the image
+        and the receiver retrieves it here (or via a CDex Task Data Request). Dental systems
+        can serve a pull; medical-side receivers instead get a push (see $submit-attachment).
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses:
+        '200':
+          description: DocumentReference (ODEReferralDocumentReference)
+          content:
+            application/fhir+json:
+              schema: { type: object }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /DocumentReference/$submit-attachment:
+    post:
+      tags: [Attachments]
+      operationId: submitAttachment
+      summary: Push a supporting image (separate push — medical-side receivers)
+      description: >
+        Da Vinci CDex `$submit-attachment` — the **separate-push** imaging path used whenever
+        the **receiver is on the medical side** (medical&#8594;dental and dental&#8594;medical): images
+        follow as a distinct transaction *after* the referral, correlated by referral-id,
+        because the medical side exposes no inbound pull. Small images embed as
+        `attachment.data`; large images/DICOM use `attachment.url` (a FHIR `Binary`, an
+        `ImagingStudy` + WADO-RS endpoint, or a bridge capability link). Dental&#8594;dental does
+        NOT use this — it uses a pull (see GET /DocumentReference/{id}).
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema: { $ref: '#/components/schemas/Parameters' }
+            example:
+              resourceType: Parameters
+              parameter:
+                - name: referral-id
+                  valueIdentifier: { system: 'urn:ohia:referral-id', value: 'REF-2026-001' }
+                - name: attachment
+                  resource:
+                    resourceType: DocumentReference
+                    meta:
+                      profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-documentreference']
+                    status: current
+                    category: [{ text: imaging }]
+                    content:
+                      - attachment:
+                          contentType: image/jpeg
+                          title: Panoramic radiograph
+                          url: https://ode.example.org/fhir/Binary/pano-001
+      responses:
+        '200':
+          description: OperationOutcome (accepted)
+          content:
+            application/fhir+json:
+              schema: { type: object }
+
+  /Subscription:
+    post:
+      tags: [Notifications]
+      operationId: createSubscription
+      summary: Subscribe to referral status changes
+      description: Topic-based subscription on `ode-referral-status`; fires on Task status/businessStatus change.
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema: { type: object }
+            example:
+              resourceType: Subscription
+              status: requested
+              topic: https://oralhealthalliance.net/fhir/SubscriptionTopic/ode-referral-status
+              reason: Follow referral REF-2026-002
+              channel:
+                type: rest-hook
+                endpoint: https://initiator.example.org/notify
+                payload: application/fhir+json
+      responses:
+        '201':
+          description: Created Subscription
+          content:
+            application/fhir+json:
+              schema: { type: object }
+
+components:
+  securitySchemes:
+    smartOnFhir:
+      type: oauth2
+      description: SMART on FHIR (SMART App Launch / Backend Services)
+      flows:
+        authorizationCode:
+          authorizationUrl: https://ode.example.org/auth/authorize
+          tokenUrl: https://ode.example.org/auth/token
+          scopes:
+            'system/ServiceRequest.rs': Read/search referrals
+            'system/Task.cruds': Manage the referral workflow
+            'system/MedicationRequest.rs': Read the medication list
+            'system/DocumentReference.crs': Read or submit attachments
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: Resource logical id
+    referralId:
+      name: referral-id
+      in: query
+      schema: { type: string, example: 'urn:ohia:referral-id|REF-2026-002' }
+      description: Token search on the ODE referral identifier (system|value)
+    patient:
+      name: patient
+      in: query
+      schema: { type: string, example: 'Patient/example' }
+      description: Reference search by patient
+    status:
+      name: status
+      in: query
+      schema: { type: string, example: active }
+      description: Token search on status
+
+  responses:
+    OperationOutcome:
+      description: Bad request — FHIR OperationOutcome
+      content:
+        application/fhir+json:
+          schema: { $ref: '#/components/schemas/OperationOutcome' }
+    Unauthorized:
+      description: Missing or invalid SMART token
+    NotFound:
+      description: Resource not found
+
+  schemas:
+    Coding:
+      type: object
+      properties:
+        system: { type: string }
+        code: { type: string }
+        display: { type: string }
+    CodeableConcept:
+      type: object
+      properties:
+        coding: { type: array, items: { $ref: '#/components/schemas/Coding' } }
+        text: { type: string }
+    Reference:
+      type: object
+      properties:
+        reference: { type: string }
+        display: { type: string }
+    Identifier:
+      type: object
+      properties:
+        system: { type: string }
+        value: { type: string }
+
+    Bundle:
+      type: object
+      description: FHIR Bundle (transaction, transaction-response, or searchset).
+      properties:
+        resourceType: { type: string, enum: [Bundle] }
+        type: { type: string, example: transaction }
+        entry:
+          type: array
+          items:
+            type: object
+            properties:
+              fullUrl: { type: string }
+              resource: { type: object }
+              request:
+                type: object
+                properties:
+                  method: { type: string, example: POST }
+                  url: { type: string, example: ServiceRequest }
+      additionalProperties: true
+
+    Parameters:
+      type: object
+      properties:
+        resourceType: { type: string, enum: [Parameters] }
+        parameter: { type: array, items: { type: object } }
+      additionalProperties: true
+
+    OperationOutcome:
+      type: object
+      properties:
+        resourceType: { type: string, enum: [OperationOutcome] }
+        issue:
+          type: array
+          items:
+            type: object
+            properties:
+              severity: { type: string, example: error }
+              code: { type: string, example: invalid }
+              diagnostics: { type: string }
+
+    ODEReferralBase:
+      type: object
+      description: >
+        Common referral shape shared by the three directional profiles. Inherits US Core
+        ServiceRequest. The directional profiles add their own required coding and
+        must-support (see each schema below).
+      required: [resourceType, status, intent, subject]
+      properties:
+        resourceType: { type: string, enum: [ServiceRequest] }
+        meta:
+          type: object
+          properties:
+            profile: { type: array, items: { type: string } }
+        identifier:
+          type: array
+          items: { $ref: '#/components/schemas/Identifier' }
+          description: MUST include the referral id (system `urn:ohia:referral-id`).
+        status: { type: string, example: active }
+        intent: { type: string, enum: [order] }
+        category: { type: array, items: { $ref: '#/components/schemas/CodeableConcept' } }
+        code: { $ref: '#/components/schemas/CodeableConcept' }
+        reasonCode: { type: array, items: { $ref: '#/components/schemas/CodeableConcept' } }
+        bodySite:
+          type: array
+          items: { $ref: '#/components/schemas/CodeableConcept' }
+          description: Carries the `ode-tooth` extension for tooth-specific referrals.
+        subject: { $ref: '#/components/schemas/Reference' }
+        requester: { $ref: '#/components/schemas/Reference' }
+        supportingInfo: { type: array, items: { $ref: '#/components/schemas/Reference' } }
+      additionalProperties: true
+
+    ODEMedicalToDentalReferral:
+      description: >
+        Medical system -> dentist. **Must-support:** ICD-10-CM `reasonCode` + CPT/HCPCS
+        `code` (so the dentist bills medically without lookup); **CDT is NOT must-support**.
+        Tooth is *should* (the medical sender often won't know it). Imaging is a **separate
+        push** after the referral. Radiation dosimetry for clearance is required-when-
+        applicable but currently unmodeled.
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-medical-to-dental-referral
+      allOf:
+        - $ref: '#/components/schemas/ODEReferralBase'
+        - type: object
+          required: [reasonCode, code]
+
+    ODEDentalToDentalReferral:
+      description: >
+        Dentist -> dentist. **Must-support:** CDT `code` + tooth `bodySite` (you cannot
+        extract "a tooth"); **SNODENT should**; medical codes not required. Supporting
+        imaging uses **support-a-pull** (receiver retrieves via CDex). Pre-procedure risk
+        observations are should-populate.
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-dental-referral
+      allOf:
+        - $ref: '#/components/schemas/ODEReferralBase'
+        - type: object
+          required: [code, bodySite]
+
+    ODEDentalToMedicalReferral:
+      description: >
+        Dentist -> physician (e.g. OSA screen -> sleep medicine). The physician bills
+        medically, so **must-support:** ICD-10-CM `reasonCode` + CPT/HCPCS `code`; **SNODENT
+        should** (preserve dental origin); **CDT not required**. The **screening result**
+        (Observation + RiskAssessment) is must-support and travels in `supportingInfo`
+        (AI-result shape is a gap). Imaging is a **separate push**. Coverage is cross-benefit.
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-medical-referral
+      allOf:
+        - $ref: '#/components/schemas/ODEReferralBase'
+        - type: object
+          required: [reasonCode, code, supportingInfo]
+
+    ODEReferralTask:
+      type: object
+      description: The ODE/COW workflow object — source of truth for referral state. Inherits base FHIR Task (US Core has no Task profile).
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-task
+      required: [resourceType, status, intent, code, focus, for]
+      properties:
+        resourceType: { type: string, enum: [Task] }
+        identifier: { type: array, items: { $ref: '#/components/schemas/Identifier' } }
+        status:
+          type: string
+          enum: [requested, accepted, in-progress, completed, rejected, cancelled, failed]
+        businessStatus: { $ref: '#/components/schemas/CodeableConcept' }
+        intent: { type: string, enum: [order] }
+        code: { $ref: '#/components/schemas/CodeableConcept' }
+        focus: { $ref: '#/components/schemas/Reference' }
+        for: { $ref: '#/components/schemas/Reference' }
+        owner: { $ref: '#/components/schemas/Reference' }
+        requester: { $ref: '#/components/schemas/Reference' }
+      additionalProperties: true
+
+    ODEMedicationList:
+      type: object
+      description: The medication list. Inherits base FHIR List (US Core has no List profile); entries reference US Core MedicationRequest.
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-medication-list
+      required: [resourceType, status, mode, code, subject]
+      properties:
+        resourceType: { type: string, enum: [List] }
+        status: { type: string, enum: [current] }
+        mode: { type: string, enum: [snapshot] }
+        code:
+          $ref: '#/components/schemas/CodeableConcept'
+        subject: { $ref: '#/components/schemas/Reference' }
+        entry:
+          type: array
+          items:
+            type: object
+            properties:
+              item: { $ref: '#/components/schemas/Reference' }
+      additionalProperties: true
+
+  examples:
+    medicalToDentalReferral:
+      summary: Medical->dental (ICD-10-CM + CPT/HCPCS, NO CDT)
+      value:
+        resourceType: ServiceRequest
+        meta:
+          profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-medical-to-dental-referral']
+        identifier:
+          - { system: 'urn:ohia:referral-id', value: 'REF-2026-001' }
+        status: active
+        intent: order
+        category:
+          - coding:
+              - { system: 'http://snomed.info/sct', code: '103696004', display: 'Patient referral to specialist' }
+        code:
+          coding:
+            - { system: 'http://www.ama-assn.org/go/cpt', code: '99242', display: 'Office/outpatient consultation' }
+          text: 'Pre-radiation dental clearance evaluation (codes illustrative)'
+        reasonCode:
+          - coding:
+              - { system: 'http://hl7.org/fhir/sid/icd-10-cm', code: 'C02.1', display: 'Malignant neoplasm of border of tongue' }
+          - coding:
+              - { system: 'http://hl7.org/fhir/sid/icd-10-cm', code: 'Z01.818', display: 'Encounter for other preprocedural examination' }
+        subject: { reference: 'Patient/example', display: 'John Smith' }
+        requester: { reference: 'PractitionerRole/oncology', display: 'Radiation Oncology' }
+
+    dentalToDentalReferral:
+      summary: Dental->dental (CDT must-support + SNODENT should, tooth required, no medical codes)
+      value:
+        resourceType: ServiceRequest
+        meta:
+          profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-dental-referral']
+        identifier:
+          - { system: 'urn:ohia:referral-id', value: 'REF-2026-002' }
+        status: active
+        intent: order
+        code:
+          coding:
+            - { system: 'http://www.ada.org/cdt', code: 'D7210', display: 'Extraction, erupted tooth requiring bone removal' }
+            - { system: 'http://www.ada.org/snodent', code: '<SNODENT>', display: 'Vertical root fracture (SNODENT - illustrative)' }
+          text: 'Surgical extraction of tooth #30'
+        reasonCode:
+          - coding:
+              - { system: 'http://hl7.org/fhir/sid/icd-10-cm', code: 'K04.7', display: 'Periapical abscess without sinus' }
+        bodySite:
+          - extension:
+              - url: 'https://oralhealthalliance.net/fhir/StructureDefinition/ode-tooth'
+                valueCodeableConcept:
+                  coding:
+                    - { system: 'http://ohia-codes.org/CodeSystem/ode-tooth-universal', code: '30', display: 'Tooth 30' }
+            text: 'Tooth #30'
+        subject: { reference: 'Patient/example2', display: 'Frank Castle' }
+        requester: { reference: 'PractitionerRole/general-dentist', display: 'General Dentist' }
+
+    dentalToMedicalReferral:
+      summary: Dental->medical (ICD-10-CM + CPT/HCPCS, SNODENT should, screening result in supportingInfo)
+      value:
+        resourceType: ServiceRequest
+        meta:
+          profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-medical-referral']
+        identifier:
+          - { system: 'urn:ohia:referral-id', value: 'REF-2026-005' }
+        status: active
+        intent: order
+        code:
+          coding:
+            - { system: 'http://www.ama-assn.org/go/cpt', code: '95810', display: 'Polysomnography, attended (sleep study)' }
+            - { system: 'http://www.ada.org/snodent', code: '<SNODENT>', display: 'Airway/sleep finding (SNODENT - illustrative)' }
+          text: 'Sleep study for suspected obstructive sleep apnea'
+        reasonCode:
+          - coding:
+              - { system: 'http://hl7.org/fhir/sid/icd-10-cm', code: 'G47.33', display: 'Obstructive sleep apnea (suspected)' }
+        subject: { reference: 'Patient/example5', display: 'Robert Vasquez' }
+        requester: { reference: 'PractitionerRole/dental-practice', display: 'General Dental Practice' }
+        supportingInfo:
+          - { reference: 'Observation/epworth-001', display: 'Epworth Sleepiness Scale = 14' }
+          - { reference: 'RiskAssessment/osa-ai-001', display: 'AI OSA risk = high (facial scan)' }
+
+    referralTask:
+      summary: Referral Task at intake
+      value:
+        resourceType: Task
+        meta:
+          profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-task']
+        identifier:
+          - { system: 'urn:ohia:referral-id', value: 'REF-2026-002' }
+        status: requested
+        intent: order
+        businessStatus:
+          coding:
+            - { system: 'http://ohia-codes.org/CodeSystem/ode-referral-sub-status', code: 'received', display: 'Received' }
+        code:
+          coding:
+            - { system: 'http://hl7.org/fhir/CodeSystem/task-code', code: 'fulfill' }
+        focus: { reference: 'ServiceRequest/REF-2026-002' }
+        for: { reference: 'Patient/example2', display: 'Frank Castle' }
+        requester: { reference: 'PractitionerRole/general-dentist' }
+        owner: { reference: 'Organization/oral-surgery' }
+
+    referralBundle:
+      summary: Referral submission (transaction Bundle - dental->dental)
+      value:
+        resourceType: Bundle
+        type: transaction
+        entry:
+          - fullUrl: 'urn:uuid:sr-1'
+            resource:
+              resourceType: ServiceRequest
+              meta:
+                profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-dental-referral']
+              identifier:
+                - { system: 'urn:ohia:referral-id', value: 'REF-2026-002' }
+              status: active
+              intent: order
+              code:
+                coding:
+                  - { system: 'http://www.ada.org/cdt', code: 'D7210', display: 'Extraction, erupted tooth requiring bone removal' }
+                text: 'Surgical extraction of tooth #30'
+              subject: { reference: 'Patient/example2' }
+            request: { method: POST, url: ServiceRequest }
+          - fullUrl: 'urn:uuid:task-1'
+            resource:
+              resourceType: Task
+              meta:
+                profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-task']
+              identifier:
+                - { system: 'urn:ohia:referral-id', value: 'REF-2026-002' }
+              status: requested
+              intent: order
+              code:
+                coding:
+                  - { system: 'http://hl7.org/fhir/CodeSystem/task-code', code: 'fulfill' }
+              focus: { reference: 'urn:uuid:sr-1' }
+              for: { reference: 'Patient/example2' }
+            request: { method: POST, url: Task }
+
+    medicationListBundle:
+      summary: Medication list (List + US Core MedicationRequest, one patient-reported)
+      value:
+        resourceType: Bundle
+        type: collection
+        entry:
+          - resource:
+              resourceType: List
+              meta:
+                profile: ['https://oralhealthalliance.net/fhir/StructureDefinition/ode-medication-list']
+              status: current
+              mode: snapshot
+              title: Medication List
+              code:
+                coding:
+                  - { system: 'http://loinc.org', code: '10160-0', display: 'History of Medication use Narrative' }
+              subject: { reference: 'Patient/example2' }
+              entry:
+                - { item: { reference: 'MedicationRequest/mr-1' } }
+                - { item: { reference: 'MedicationRequest/mr-2' } }
+          - resource:
+              resourceType: MedicationRequest
+              id: mr-1
+              meta:
+                profile: ['http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest']
+              status: active
+              intent: order
+              reportedBoolean: false
+              medicationCodeableConcept:
+                coding:
+                  - { system: 'http://www.nlm.nih.gov/research/umls/rxnorm', code: '860975', display: 'metFORMIN hydrochloride 500 MG Oral Tablet' }
+              subject: { reference: 'Patient/example2' }
+          - resource:
+              resourceType: MedicationRequest
+              id: mr-2
+              meta:
+                profile: ['http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest']
+              status: active
+              intent: order
+              reportedBoolean: true
+              medicationCodeableConcept:
+                coding:
+                  - { system: 'http://www.nlm.nih.gov/research/umls/rxnorm', code: '314076', display: 'lisinopril 10 MG Oral Tablet' }
+              subject: { reference: 'Patient/example2' }

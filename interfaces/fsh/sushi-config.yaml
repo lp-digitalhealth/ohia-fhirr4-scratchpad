@@ -1,0 +1,51 @@
+# sushi-config.yaml — Oral Health Data Exchange (ODE) Implementation Guide
+#
+# This is the FOURTH view of the ODE interface: the compilable IG source.
+# It is functionally identical to the other three stakeholder views:
+#   - fhir-interfaces.md         (IG-development narrative + illustrative FSH)
+#   - openapi.yaml               (REST / OpenAPI 3.0 contract)
+#   - ode-api-swagger.html       (Swagger UI rendering of openapi.yaml)
+# See INTERFACE-VIEWS.md for the element-by-element parity crosswalk.
+#
+# Merge this into the scaffolding already in ohia-fhirr4-scratchpad
+# (keep whatever id/publisher/menu your template already defines).
+
+id: ohia.ode
+canonical: https://oralhealthalliance.net/fhir
+name: ODE
+title: "Oral Health Data Exchange (ODE) Implementation Guide"
+description: >-
+  USCDI + Dental: a definitive oral-health data model that inherits from US Core,
+  with three directional referral profiles (medical->dental, dental->dental,
+  dental->medical) over an HL7 Clinical Order Workflows (COW) Task backbone.
+status: draft
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: 2026+
+releaseLabel: ci-build
+
+publisher:
+  name: Oral Health Interoperability Alliance (OHIA)
+  url: https://oralhealthalliance.net
+
+dependencies:
+  # REQUIRED — the profiles inherit US Core 6.1.0 (verified: us-core-servicerequest,
+  # us-core-observation-clinical-result, etc. all exist in 6.1.0).
+  hl7.fhir.us.core: 6.1.0
+  # NEEDED for instances/search-and-subscription.fsh (SubscriptionTopic on R4).
+  # Package id/version depends on your build; add the Topic-based Subscriptions
+  # Backport package for R4, or comment out the SubscriptionTopic if unused:
+  # hl7.fhir.uv.subscriptions-backport: 1.1.0
+  # OPTIONAL — only referenced as a canonical string in the CapabilityStatement
+  # ($submit-attachment). Not required to build; add to resolve the reference:
+  # hl7.fhir.us.davinci-cdex: 2.0.0
+
+# NOTE ON TERMINOLOGY CANONICALS (intentional):
+#   Profiles / extensions / capabilities publish under `canonical`
+#   (https://oralhealthalliance.net/fhir).
+#   CodeSystems / ValueSets publish under the OHIA codes namespace
+#   (http://ohia-codes.org) via explicit ^url in terminology/terminology.fsh.
+#   SUSHI may warn that these ^url values differ from `canonical`; that is expected.
+
+parameters:
+  show-inherited-invariants: false

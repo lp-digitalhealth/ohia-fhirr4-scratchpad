@@ -9,3 +9,11 @@ Desktop.ini
 # Local validation & logs
 *.log
 validation-results/
+
+# FHIR IG build outputs (SUSHI / IG Publisher)
+fsh-generated/
+output/
+template/
+input-cache/
+.DS_Store
+node_modules/
