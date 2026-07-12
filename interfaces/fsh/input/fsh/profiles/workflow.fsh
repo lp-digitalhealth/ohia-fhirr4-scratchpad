@@ -30,4 +30,9 @@ Description: "The ODE workflow object and single source of truth for referral st
 * owner MS
 * owner only Reference($ucPractitionerRole or $ucOrganization or $ucPractitioner)
 * statusReason MS
+* note MS
+* note ^short = "Free-text notes, including informal inter-provider information requests (the base COW IG's \"Requesting additional information\" pattern — RESTful query / letter / instruction; a note here implements \"letter\"). The request itself has no dedicated resource; the resulting content attaches via $append-interim."
+* input MS
+* input ^short = "The referral package on intake (Condition, MedicationRequest, ODEMedicationList, AllergyIntolerance) — adopted COW scope."
 * output MS
+* output ^short = "Interim or outcome resources attached as the referral progresses (e.g. via $append-interim) — adopted COW scope." 

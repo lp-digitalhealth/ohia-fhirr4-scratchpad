@@ -66,3 +66,57 @@ Description: "A point-in-time medication list conveyed with a referral so the re
 * entry MS
 * entry.item 1..1 MS
 * entry.item only Reference($ucMedReq or MedicationStatement)
+
+
+// ============================================================================
+// CLINICAL CONTENT — findings that arise DURING a referral episode (not part of
+// the initial referral submission). Attached to the open referral's Task.output
+// via the $append-interim operation. All inherit US Core.
+// ============================================================================
+
+Profile: ODEObservation
+Parent: $ucObs
+Id: ode-observation
+Title: "ODE Observation"
+Description: "A clinical finding arising during a referral episode, inheriting US Core Observation Clinical Result. Where no established code system exists for the finding, use code.text rather than fabricating a coding — e.g. site-specific radiation dosimetry (DDC) for pre-radiation dental clearance, the named gap surfaced by UC01."
+* status MS
+* code 1..1 MS
+* code ^comment = "Use code.text (NOT a fabricated coding) where no established code system exists for the finding — e.g. site-specific radiation dose at a tooth. This is the agreed interim treatment of the UC01 dosimetry gap: an explicit, honest text finding rather than an invented code."
+* code.text MS
+* subject 1..1 MS
+* subject only Reference($ucPatient)
+* encounter MS
+* encounter only Reference(ODEEncounter)
+* value[x] MS
+* bodySite MS
+* bodySite.extension contains ODETooth named tooth 0..1 MS
+* note MS
+* note ^short = "Free-text note — e.g. that the value was obtained via an informal inter-provider information request (COW 'letter' pattern) rather than a formal order."
+
+
+Profile: ODEDiagnosticReport
+Parent: $ucDiagReportNote
+Id: ode-diagnosticreport
+Title: "ODE Diagnostic Report"
+Description: "A diagnostic report arising during a referral episode, inheriting the US Core DiagnosticReport profile for Report and Note exchange."
+* status MS
+* code 1..1 MS
+* subject 1..1 MS
+* subject only Reference($ucPatient)
+* encounter MS
+* encounter only Reference(ODEEncounter)
+* conclusion MS
+
+
+Profile: ODEEncounter
+Parent: $ucEncounter
+Id: ode-encounter
+Title: "ODE Encounter"
+Description: "A visit within a referral episode, inheriting US Core Encounter. basedOn links the visit back to the originating referral. NOTE: FHIR R4 Encounter has no `note` element — the informal inter-provider information request (the COW 'letter' mechanism) is carried on Task.note and/or Observation.note."
+* status MS
+* class MS
+* subject 1..1 MS
+* subject only Reference($ucPatient)
+* basedOn MS
+* basedOn only Reference(ODEReferralServiceRequest)
+* basedOn ^short = "Reference to the originating referral ServiceRequest."

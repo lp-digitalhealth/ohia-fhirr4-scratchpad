@@ -62,3 +62,26 @@ sushi .
 
 The FSH should compile (US Core 6.1.0 dependency) before it's promoted. Known finalization
 points are listed in `interfaces/fsh/README.md`.
+
+## Letting an AI agent do the syncing
+
+The protocol above is encoded for AI coding agents so the cross-view propagation can be
+delegated:
+
+- **Claude Code** → [`CLAUDE.md`](./CLAUDE.md) (read automatically at the repo root)
+- **Cursor** → [`.cursor/rules/`](./.cursor/rules): `ode-interface-sync.mdc` (always on),
+  `fsh-authoring.mdc` (on `interfaces/fsh/**`), `openapi-and-swagger.mdc` (on the OpenAPI /
+  Swagger files)
+
+They carry the same invariants a human contributor must honor: the shared anchors, the three
+directional referral profiles and their must-support sets, the imaging push/pull rule, the
+"should-support" convention, and the deferred gaps they must not invent shapes for.
+
+Ask the agent to make a change **and propagate it**; it should edit every affected view,
+update `interfaces/INTERFACE-VIEWS.md`, regenerate the Swagger HTML if the OpenAPI changed,
+and report what remains unsynced. **Still review the PR** — the agent enforces the protocol,
+it doesn't own the decision. Promotion to `staging-transition/` remains human-only.
+
+When the interface changes in a way these files describe (a new profile, a changed
+must-support), **update `CLAUDE.md` and the Cursor rules too** — they are part of the
+contract, not commentary.

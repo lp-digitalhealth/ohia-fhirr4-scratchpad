@@ -1,0 +1,96 @@
+---
+description: ODE interface — keep the four views in sync (the core repo rule)
+alwaysApply: true
+---
+
+# ODE interface — four views, one contract
+
+This repo maintains the **Oral Health Data Exchange (ODE)** referral interface as **four
+views of ONE interface**. FHIR **R4 (4.0.1)**, inheriting **US Core 6.1.0**.
+
+| View | File |
+|------|------|
+| 1 — IG-dev narrative (+ illustrative FSH) | `interfaces/fhir-interfaces.md` |
+| 2 — OpenAPI 3.0 contract | `interfaces/openapi.yaml` |
+| 3 — Swagger UI (**generated** from view 2 — never hand-edit) | `interfaces/ode-api-swagger.html` |
+| 4 — FSH IG source (machine source of truth; the only view promoted) | `interfaces/fsh/**` |
+| — Crosswalk (sync backbone) | `interfaces/INTERFACE-VIEWS.md` |
+
+## THE RULE: no view changes alone
+
+When changing the interface:
+
+1. Make the change in the view(s) requested.
+2. **Propagate it to every other affected view.** Never leave the views inconsistent.
+3. Update the affected row(s) of `interfaces/INTERFACE-VIEWS.md`.
+4. If `openapi.yaml` changed, regenerate `ode-api-swagger.html` (it embeds the spec as JSON
+   in a `var spec = {...}` block; preserve the multi-CDN loader + static fallback).
+5. Summarize: what changed, in which views, what remains unsynced.
+
+If a request would touch only one view and leave the rest inconsistent, say so and propose
+the complete set of edits.
+
+## Invariants (never change silently)
+
+- Canonical `https://oralhealthalliance.net/fhir` · terminology `http://ohia-codes.org`
+- Referral id `urn:ohia:referral-id`
+- CDT `http://www.ada.org/cdt` · SNODENT `http://www.ada.org/snodent`
+- ICD-10-CM `http://hl7.org/fhir/sid/icd-10-cm` · CPT `http://www.ama-assn.org/go/cpt` ·
+  HCPCS `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets`
+- FHIR R4 only — do not introduce R5/R6 resources.
+
+## The model
+
+ODE is **"USCDI + Dental"**: almost every profile inherits **US Core**. Only **`Task`** (HL7
+COW workflow) and **`List`** (medication list) inherit base FHIR, because US Core profiles
+neither.
+
+**Three referral profiles, each with its own must-support** (CARIN Blue Button pattern):
+
+| Direction | Profile | Coding must-support | Imaging |
+|-----------|---------|---------------------|---------|
+| medical → dental | `ODEMedicalToDentalReferral` | ICD-10-CM + CPT/HCPCS; **CDT NOT MS** | **separate push** |
+| dental → dental | `ODEDentalToDentalReferral` | **CDT MS**; SNODENT should; **tooth `bodySite` MS** | **support-a-pull** |
+| dental → medical | `ODEDentalToMedicalReferral` | ICD-10-CM + CPT/HCPCS; SNODENT should; **screening result MS** | **separate push** |
+
+Unifying rule: each referral is coded for the world the **receiving clinician acts and bills
+in**. Whenever the receiver is on the **medical side**, imaging is a separate push; only
+dental→dental pulls.
+
+**"Should-support"** = an optional (non-MS) slice documented as SHOULD-populate, because
+FHIR's only conformance flag is Must Support. Preserve this convention (SNODENT,
+pre-procedure risk observations).
+
+## Interim clinical content
+
+The referral profiles cover the **initial submission** only. Findings arising *during* the
+episode use `ODEEncounter` / `ODEDiagnosticReport` / `ODEObservation` (all inherit US Core),
+attached via **`POST /Task/{id}/$append-interim`** → populates `Task.output`, advances
+`businessStatus` to `interim-results`. ODE-native equivalent of 360X PCC-59, no bridge needed.
+`Task.input`/`Task.output` are adopted COW scope. An informal information request is a
+**`Task.note`** (COW "letter" mechanism; no dedicated resource).
+
+**FHIR R4 `Encounter` has NO `note` element** — never add one; use `Task.note` or
+`Observation.note`.
+
+## Uncoded findings — the rule
+
+Where **no established code system exists**, use **`code.text`** and **never fabricate a
+coding**. This is how radiation dosimetry (UC01) is handled: `ODEObservation` with
+`code.text`, `valueQuantity` in Gy, `bodySite` = the tooth.
+
+## Deferred gaps — do not invent shapes
+
+The AI screening result (Observation + RiskAssessment, MS on `ODEDentalToMedicalReferral`,
+UC05); FDI ISO 3950 tooth numbering. Leave as documented gaps unless explicitly asked to
+model them. *(Radiation dosimetry is resolved — see above.)*
+
+## Language
+
+Dental professionals ARE doctors. Write "dental and medical providers/care" — never contrast
+"dentists" and "doctors."
+
+## Promotion (human-only)
+
+At concurrence a maintainer manually copies **only** `interfaces/fsh/` into
+`staging-transition/` (frozen). Never promote unprompted.

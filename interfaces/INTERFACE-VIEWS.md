@@ -38,6 +38,9 @@ so a change to one is easy to mirror in the others during finalization.
 | Periodontal obs | §4 `ODEPeriodontalObservation` | (referenced) | `profiles/clinical.fsh` |
 | Medication list | §4 `ODEMedicationList` | schema `ODEMedicationList` | `profiles/clinical.fsh` |
 | Tooth extension | §4 `ode-tooth` | `bodySite.extension` in examples | `extensions/ode-tooth.fsh` |
+| **Interim Observation** | §2.5 / §4 `ODEObservation` | schema `ODEObservation` | `profiles/clinical.fsh` |
+| **Interim DiagnosticReport** | §2.5 / §4 `ODEDiagnosticReport` | schema `ODEDiagnosticReport` | `profiles/clinical.fsh` |
+| **Interim Encounter** | §2.5 / §4 `ODEEncounter` | schema `ODEEncounter` | `profiles/clinical.fsh` |
 
 ## Directional coding — the crux (must match exactly)
 
@@ -62,6 +65,9 @@ flag is Must Support.
 | Imaging — medical-side **push** | §6.4 | `POST /DocumentReference/$submit-attachment` | `operation submit-attachment` |
 | Medication list | §6.5 | `GET /MedicationRequest?patient=` · `GET /List/{id}` | MedicationRequest + List `read`/`search` |
 | Coverage & PA (reused Da Vinci) | §6.6 | (out of core paths) | (reused, not profiled) |
+| **Attach interim content** | §2.5 / §6 | `POST /Task/{id}/$append-interim` | `operation append-interim` + `instances/append-interim-operation.fsh` |
+| **Interim clinical CRUD** | §2.5 | `POST`/`GET /Observation`, `/DiagnosticReport`, `/Encounter` | Observation / DiagnosticReport / Encounter `create`,`read`,`search` |
+| **Informal info request** (COW "letter") | §2.5 | `Task.note` | `Task.note` MS |
 | Notifications | §5 | `POST /Subscription` | SubscriptionTopic + Subscription `create` |
 
 ## Terminology
@@ -75,10 +81,14 @@ flag is Must Support.
 
 ## Deferred gaps (identical in all views)
 
-Radiation dosimetry (DDC) for medical→dental clearance, and the AI screening-result shape
-(Observation + RiskAssessment) that is must-support on `ODEDentalToMedicalReferral`, are
-**intentionally unmodeled** pending agreement. FDI ISO 3950 tooth numbering is pending
-permission. Any view that later models these must update the other three.
+**Radiation dosimetry (DDC) — RESOLVED by convention.** A site-specific dose is an
+`ODEObservation` with **`code.text`** (never a fabricated coding), `valueQuantity` in Gy
+(UCUM), and `bodySite` = the tooth, delivered via `$append-interim`. No new profile. This is
+the general rule for **any finding with no established code system**.
+
+Still open: the **AI screening-result shape** (Observation + RiskAssessment) that is
+must-support on `ODEDentalToMedicalReferral`; **FDI ISO 3950** tooth numbering (permission
+pending). Any view that later models these must update the other three.
 
 ## Keeping the views in sync (finalization)
 

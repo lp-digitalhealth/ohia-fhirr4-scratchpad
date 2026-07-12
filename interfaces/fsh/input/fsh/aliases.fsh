@@ -27,6 +27,7 @@ Alias: $ucCoverage         = http://hl7.org/fhir/us/core/StructureDefinition/us-
 Alias: $ucEncounter        = http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter
 Alias: $ucProvenance       = http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance
 Alias: $ucObs              = http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-clinical-result
+Alias: $ucDiagReportNote   = http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note
 
 // ODE referral-id (matches the reference adapter)
 Alias: $referralId   = urn:ohia:referral-id

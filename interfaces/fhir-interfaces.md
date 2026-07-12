@@ -63,6 +63,7 @@ Alias: $ucCoverage        = http://hl7.org/fhir/us/core/StructureDefinition/us-c
 Alias: $ucEncounter       = http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter
 Alias: $ucProvenance      = http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance
 Alias: $ucObs             = http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-clinical-result
+Alias: $ucDiagReportNote  = http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note
 
 // ODE referral-id (matches the reference adapter)
 Alias: $referralId   = urn:ohia:referral-id
@@ -93,7 +94,11 @@ Alias: $referralId   = urn:ohia:referral-id
 | **Periodontal finding** | `ODEPeriodontalObservation` | **ODE** |
 | **Medication list** | `ODEMedicationList` (List) + US Core MedicationRequest | **ODE** thin + **reuse** |
 | **Tooth designation** | `ode-tooth` extension | **ODE** |
-| Dosimetry / AI-screening result | *(deferred — see §9)* | **gap** |
+| **Interim clinical content** (during the episode) | `ODEObservation`, `ODEDiagnosticReport`, `ODEEncounter` | **ODE** (all inherit US Core) |
+| **Attach interim content** | `$append-interim` on Task | **ODE** operation |
+| **Informal information request** | `Task.note` (COW "letter") | **reuse** COW pattern |
+| Radiation dosimetry (DDC) | `ODEObservation` with `code.text` — *see §2.5* | **addressed by convention** |
+| AI-screening result | *(deferred — see §9)* | **gap** |
 
 ---
 
@@ -161,7 +166,7 @@ codes to act and bill medically **without looking anything up**.
 | medication list, `AllergyIntolerance` | **MS** | pre-treatment safety |
 | `Coverage` | **MS** | medical benefit context |
 | imaging (`DocumentReference` / `ImagingStudy`) | **separate push** — a distinct CDex `$submit-attachment` transaction *after* the referral notification (correlated by referral-id) | *no inbound pull* on the medical side, so images can't be embedded-and-pulled; they follow as their own operation |
-| **radiation dosimetry (clearance)** | **required-when-applicable — UNMODELED (gap, §9)** | clearance can't be completed without which teeth sit in ≥50 Gy fields |
+| **radiation dosimetry (clearance)** | **required-when-applicable** — an `ODEObservation` with `code.text` (no fabricated coding), delivered via `$append-interim` (§2.5) | clearance can't be completed without knowing which teeth sit in ≥50 Gy fields |
 
 ### 2.3 `ODEDentalToDentalReferral` — must-support
 
@@ -220,6 +225,44 @@ actor's CapabilityStatement declares which it supports.
 ---
 
 
+### 2.5 Interim clinical content (findings that arise *during* the episode)
+
+The three referral profiles above govern the **initial submission**. But clinical findings
+routinely arise *after* a referral is open — and the fulfiller often needs data that was
+never in the original package. ODE handles this as a distinct concern:
+
+**Requesting the data.** The base COW IG documents three mechanisms for "Requesting
+additional information": a **RESTful query**, a **letter**, or an **instruction**. There is
+**no dedicated resource for the request itself** — an informal inter-provider request is
+carried as a **`Task.note`** (the "letter" mechanism). *(Note: FHIR R4 `Encounter` has no
+`note` element; use `Task.note` or `Observation.note`.)*
+
+**Attaching the result.** Once obtained, the clinical content is attached to the open
+referral with **`$append-interim`** on the Task (§6). The operation creates the resources,
+attaches them to **`Task.output`**, and advances **`businessStatus`** (typically to
+`interim-results`). This is the **ODE-native equivalent of a 360X PCC-59 (Interim
+Consultation Note)** — but usable directly, with **no bridge and no HL7 v2 message**.
+
+| Profile | Inherits | Role |
+|---------|----------|------|
+| `ODEEncounter` | US Core Encounter | the visit within the episode; `basedOn` → the originating referral |
+| `ODEDiagnosticReport` | US Core DiagnosticReport (Report & Note) | a report produced during the episode |
+| `ODEObservation` | US Core Observation Clinical Result | a finding produced during the episode |
+
+**`Task.input` / `Task.output` are adopted COW scope**: `input` carries the referral package
+on intake (Condition, MedicationRequest, `ODEMedicationList`, AllergyIntolerance); `output`
+carries interim and outcome resources as the referral progresses.
+
+> **Uncoded findings — the dosimetry decision.** Where **no established code system exists**
+> for a finding, ODE says: use **`code.text`, and do not fabricate a coding.** This is how
+> the long-deferred **UC01 radiation dosimetry (DDC)** gap is now handled — a site-specific
+> dose is an `ODEObservation` with `code.text` (e.g. "Site-specific radiation dose at tooth
+> #30 (DDC) — no established LOINC code"), `valueQuantity` 52 Gy (UCUM), and `bodySite` the
+> tooth. An honest text finding beats an invented code. This is a **convention, not a new
+> profile** — if a code system emerges, it slots into `code.coding` without a breaking change.
+
+---
+
 ## 3. The API contract — CapabilityStatements
 
 Two actors. The **ODE Referral Recipient (Fulfiller) Server** is what a dental ODE Native
@@ -262,6 +305,8 @@ Usage: #definition
 * rest.resource[=].searchParam[=].type = #token
 * rest.resource[=].searchParam[+].name = "status"
 * rest.resource[=].searchParam[=].type = #token
+* rest.resource[=].operation[+].name = "append-interim"
+* rest.resource[=].operation[=].definition = "https://oralhealthalliance.net/fhir/OperationDefinition/ode-append-interim"
 
 // ServiceRequest — the referral order (directional profiles)
 * rest.resource[+].type = #ServiceRequest
@@ -298,6 +343,24 @@ Usage: #definition
 * rest.resource[=].searchParam[=].type = #reference
 * rest.resource[+].type = #List
 * rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-medication-list"
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+
+// Clinical content — findings arising DURING the referral episode
+* rest.resource[+].type = #Observation
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-observation"
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-periodontal-observation"
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[+].type = #DiagnosticReport
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-diagnosticreport"
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[+].type = #Encounter
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-encounter"
+* rest.resource[=].interaction[+].code = #create
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 
@@ -367,7 +430,7 @@ Description: "A referral originating in a medical system. Medical billing codes 
 * code.coding[hcpcs].system = $hcpcs (exactly)
 * bodySite ^short = "SHOULD support — the medical sender often will not know the tooth"
 * supportingInfo MS
-* supportingInfo ^short = "MS: referral/clinical note (DocumentReference, LOINC 57133-1). Imaging is NOT embedded here — it follows as a separate $submit-attachment push after this referral (no inbound pull on the medical side). Radiation dosimetry for clearance is required-when-applicable but UNMODELED — see §9."
+* supportingInfo ^short = "MS: referral/clinical note (DocumentReference, LOINC 57133-1). Imaging is NOT embedded here — it follows as a separate $submit-attachment push after this referral (no inbound pull on the medical side). Radiation dosimetry for clearance arrives via $append-interim as an ODEObservation with code.text — see §2.5."
 ```
 
 ```
@@ -447,7 +510,12 @@ Description: "The ODE workflow object and single source of truth for referral st
 * owner MS
 * owner only Reference($ucPractitionerRole or $ucOrganization or $ucPractitioner)
 * statusReason MS
+* note MS
+* note ^short = "Free-text notes, incl. informal inter-provider information requests (COW 'letter' mechanism). The request has no dedicated resource."
+* input MS
+* input ^short = "The referral package on intake (Condition, MedicationRequest, ODEMedicationList, AllergyIntolerance) — adopted COW scope."
 * output MS
+* output ^short = "Interim/outcome resources attached as the referral progresses (e.g. via $append-interim) — adopted COW scope."
 ```
 
 ```
@@ -523,6 +591,53 @@ A concrete instance is in `spec/examples/ode-medication-list-example.json` — a
 `Bundle` with the `List` plus three US Core `MedicationRequest` entries (one patient-reported).
 
 ```
+Profile: ODEObservation
+Parent: $ucObs
+Id: ode-observation
+Title: "ODE Observation"
+Description: "A clinical finding arising during a referral episode. Where no established code system exists, use code.text rather than fabricating a coding — e.g. site-specific radiation dosimetry (DDC) for dental clearance (UC01)."
+* status MS
+* code 1..1 MS
+* code ^comment = "Use code.text (NOT a fabricated coding) where no established code system exists for the finding."
+* code.text MS
+* subject 1..1 MS
+* subject only Reference($ucPatient)
+* encounter MS
+* encounter only Reference(ODEEncounter)
+* value[x] MS
+* bodySite MS
+* bodySite.extension contains ODETooth named tooth 0..1 MS
+* note MS
+```
+
+```
+Profile: ODEDiagnosticReport
+Parent: $ucDiagReportNote
+Id: ode-diagnosticreport
+Title: "ODE Diagnostic Report"
+Description: "A diagnostic report arising during a referral episode, inheriting the US Core DiagnosticReport profile for Report and Note exchange."
+* status MS
+* code 1..1 MS
+* subject 1..1 MS
+* encounter MS
+* encounter only Reference(ODEEncounter)
+* conclusion MS
+```
+
+```
+Profile: ODEEncounter
+Parent: $ucEncounter
+Id: ode-encounter
+Title: "ODE Encounter"
+Description: "A visit within a referral episode. basedOn links back to the originating referral. NOTE: FHIR R4 Encounter has no `note` element — informal information requests ride on Task.note or Observation.note."
+* status MS
+* class MS
+* subject 1..1 MS
+* basedOn MS
+* basedOn only Reference(ODEReferralServiceRequest)
+```
+
+```
 Extension: ODETooth
 Id: ode-tooth
 Title: "Tooth designation"
@@ -594,7 +709,15 @@ Da Vinci, nothing custom:
    `ODEMedicationList` (`List`) plus its US Core `MedicationRequest` entries, and is
    independently retrievable with `GET [base]/MedicationRequest?patient={id}` or by reading
    the `List`. The bridge populates it from the C-CDA Medications section on a 360X PCC-55.
-6. **Coverage & PA (where in scope)** — CRD `order-sign` CDS Hook, DTR `Questionnaire`,
+6. **Attach interim clinical content** — `POST [base]/Task/{id}/$append-interim` with a
+   collection `Bundle` of `ODEEncounter` / `ODEDiagnosticReport` / `ODEObservation`. The
+   server creates the resources, attaches them to **`Task.output`**, and advances
+   **`businessStatus`** (typically `interim-results`). This is the **ODE-native equivalent of
+   360X PCC-59** (Interim Consultation Note) — no bridge, no HL7 v2. Use it when findings
+   arise *mid-referral*; `POST [base]` (transaction Bundle) is for the **initial submission
+   only**. An informal request for the data is a **`Task.note`** (the COW "letter"
+   mechanism); the request itself has no dedicated resource.
+7. **Coverage & PA (where in scope)** — CRD `order-sign` CDS Hook, DTR `Questionnaire`,
    PAS `Claim`/`ClaimResponse`, Plan-Net directory query — all reused from Da Vinci.
 
 ---
@@ -612,6 +735,7 @@ Title: "ODE Referral Sub-Status"
 * #triaged     "Triaged"      "Clinically triaged"
 * #scheduled   "Scheduled"    "Appointment scheduled"
 * #interim     "Interim"      "Interim update issued"
+* #interim-results "Interim results" "Interim clinical content attached to the open referral (via $append-interim)"
 * #no-show     "No-show"      "Patient did not attend"
 
 ValueSet: ODEReferralSubStatusVS
@@ -674,7 +798,7 @@ CodeSystem: (reuse) $loinc
 
 | UC | Profiles exercised | Key operations |
 |----|--------------------|----------------|
-| UC01 head/neck cancer | ServiceRequest, Task, DocumentReference, US Core context | submit Bundle, CRD/DTR, CDex (dose/imaging — partial) |
+| UC01 head/neck cancer | `ODEMedicalToDentalReferral`, Task, DocumentReference, **`ODEObservation` (dose via `code.text`)**, US Core context | submit Bundle, CRD/DTR, separate-push imaging, **`$append-interim`** for the dose |
 | UC02 surgical extraction | ServiceRequest, Task, DentalProcedure, DocumentReference (radiograph/intraoral) | submit Bundle, PAS, CDex `$submit-attachment` |
 | UC03 pediatric perio | ServiceRequest, Task, US Core context (HIE-sourced) | submit Bundle, Subscriptions, multi-recipient return |
 | UC04 teledentistry | ServiceRequest, Task, DocumentReference | submit Bundle, Plan-Net, CDex push |
@@ -687,8 +811,11 @@ CodeSystem: (reuse) $loinc
 These have no agreed FHIR representation yet and are intentionally left as placeholders
 rather than guessed at:
 
-- **Radiation dosimetry (DDC)** for UC01 — currently a `CommunicationRequest` placeholder;
-  needs a dose-result profile (likely Observation + an `ode-radiation-dose` extension).
+- ~~**Radiation dosimetry (DDC)** for UC01~~ — **RESOLVED by convention (§2.5)**: a
+  site-specific dose is an `ODEObservation` with **`code.text`** (no fabricated coding),
+  `valueQuantity` in Gy (UCUM), and `bodySite` = the tooth; attached via `$append-interim`.
+  No new profile or extension. If a code system emerges later, it slots into `code.coding`
+  without a breaking change.
 - **AI screening result** for UC05 — the OSA risk score + facial-scan provenance need an
   `ode-screening-result` profile (Observation + `RiskAssessment`) and a method/Provenance
   pattern. This is **must-support on `ODEDentalToMedicalReferral`**, so it's the gap that

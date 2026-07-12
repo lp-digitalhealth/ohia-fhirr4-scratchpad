@@ -14,6 +14,7 @@ Title: "ODE Referral Sub-Status"
 * #triaged     "Triaged"      "Clinically triaged"
 * #scheduled   "Scheduled"    "Appointment scheduled"
 * #interim     "Interim"      "Interim update issued"
+* #interim-results "Interim results" "Interim clinical content attached to the open referral (via $append-interim)"
 * #no-show     "No-show"      "Patient did not attend"
 
 ValueSet: ODEReferralSubStatusVS

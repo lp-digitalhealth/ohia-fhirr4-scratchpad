@@ -1,0 +1,44 @@
+---
+description: FSH authoring conventions for the ODE IG source
+globs: ["interfaces/fsh/**/*.fsh", "interfaces/fsh/sushi-config.yaml", "staging-transition/**/*.fsh"]
+alwaysApply: false
+---
+
+# FSH authoring (view 4 — the IG source)
+
+This is the **machine source of truth** and the only view promoted to `staging-transition/`.
+Changes here must be mirrored to `interfaces/fhir-interfaces.md`, `interfaces/openapi.yaml`
+(+ regenerated Swagger), and `interfaces/INTERFACE-VIEWS.md`.
+
+## Build
+
+```bash
+cd interfaces/fsh && sushi .
+```
+
+Dependency: `hl7.fhir.us.core: 6.1.0`. The `SubscriptionTopic` needs the Topic-based
+Subscriptions Backport on R4 (see `sushi-config.yaml`).
+
+## Conventions
+
+- **Inherit US Core** wherever a US Core profile exists (`$ucServiceRequest`, `$ucObs`,
+  `$ucProcedure`, `$ucDocRef`, …). Base FHIR only for `Task` and `List` — US Core has no
+  profile for either. Note the exception in the profile `Description`.
+- Aliases are global and live in `input/fsh/aliases.fsh` — add there, not inline.
+- **Directional coding** is the crux; keep the three referral profiles' slices intact:
+  - `ODEMedicalToDentalReferral` — `reasonCode[icd10]` MS, `code.coding[cpt|hcpcs]` MS, no CDT.
+  - `ODEDentalToDentalReferral` — `code.coding[cdt]` MS, `code.coding[snodent]` optional
+    (SHOULD, documented via `^short`/`^comment`), `bodySite.extension[tooth]` **1..1 MS**.
+  - `ODEDentalToMedicalReferral` — `reasonCode[icd10]` MS, `code.coding[cpt|hcpcs]` MS,
+    `code.coding[snodent]` optional, screening result MS in `supportingInfo`.
+- **"Should-support"**: model as an optional (non-MS) slice with `^short`/`^comment` saying
+  SHOULD-populate. Do not flag it MS. FHIR has no should-support flag.
+- Terminology sets an explicit `^url` under `http://ohia-codes.org` while the IG canonical is
+  `https://oralhealthalliance.net/fhir`. SUSHI may warn — **intentional, don't "fix" it.**
+- CDT is ADA-licensed: reference the **system**, never enumerate codes.
+- CapabilityStatements are `Usage: #definition` (requirements), not `#instance`.
+
+## Don't invent
+
+Radiation dosimetry, the AI screening-result profile, and FDI ISO 3950 tooth numbering are
+**deferred gaps**. Leave them documented as gaps unless explicitly asked to model them.

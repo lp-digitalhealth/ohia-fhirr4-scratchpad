@@ -1,0 +1,33 @@
+---
+description: OpenAPI (view 2) and the generated Swagger viewer (view 3)
+globs: ["interfaces/openapi.yaml", "interfaces/ode-api-swagger.html"]
+alwaysApply: false
+---
+
+# OpenAPI + Swagger (views 2 and 3)
+
+`openapi.yaml` is the REST contract for application dev teams.
+`ode-api-swagger.html` is **generated from it** — **never hand-edit the HTML.**
+
+## When `openapi.yaml` changes
+
+1. Mirror the change in `interfaces/fhir-interfaces.md` and `interfaces/fsh/**`.
+2. Update `interfaces/INTERFACE-VIEWS.md`.
+3. **Regenerate the Swagger HTML**: it embeds the spec as JSON in a `var spec = {...};` block.
+   Convert the YAML to JSON and replace that block. Preserve the **multi-CDN loader**
+   (jsdelivr → cdnjs → unpkg) and the **static offline fallback renderer** — they exist
+   because the CDN is blocked on some networks and the page must never throw
+   `SwaggerUIBundle is not defined`.
+
+## Contract shape (must match the FSH)
+
+- Three request schemas over a shared `ODEReferralBase`:
+  - `ODEMedicalToDentalReferral` — requires `reasonCode`, `code` (ICD-10-CM + CPT/HCPCS; no CDT)
+  - `ODEDentalToDentalReferral` — requires `code`, `bodySite` (CDT + tooth; SNODENT optional)
+  - `ODEDentalToMedicalReferral` — requires `reasonCode`, `code`, `supportingInfo` (screening result)
+- Imaging: `GET /DocumentReference/{id}` is the **dental→dental pull**;
+  `POST /DocumentReference/$submit-attachment` is the **separate push** used whenever the
+  receiver is on the **medical side**.
+- Each schema carries `x-fhir-profile` pointing at the ODE profile canonical.
+- Schemas are representative (key elements + `additionalProperties: true`); authoritative
+  element-level conformance lives in the FSH profiles.

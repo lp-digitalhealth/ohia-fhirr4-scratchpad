@@ -38,6 +38,9 @@ Usage: #definition
 * rest.resource[=].searchParam[=].type = #token
 * rest.resource[=].searchParam[+].name = "status"
 * rest.resource[=].searchParam[=].type = #token
+* rest.resource[=].operation[+].name = "append-interim"
+* rest.resource[=].operation[=].definition = "https://oralhealthalliance.net/fhir/OperationDefinition/ode-append-interim"
+* rest.resource[=].operation[=].documentation = "Attach interim clinical content (Encounter, DiagnosticReport, Observation) to an open referral: creates the resources, attaches them to Task.output, and advances businessStatus (typically to interim-results). The ODE-native equivalent of a 360X PCC-59 Interim Consultation Note — usable with no bridge."
 
 // ServiceRequest — the referral order (three directional profiles)
 * rest.resource[+].type = #ServiceRequest
@@ -74,6 +77,24 @@ Usage: #definition
 * rest.resource[=].searchParam[=].type = #reference
 * rest.resource[+].type = #List
 * rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-medication-list"
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+
+// Clinical content — findings arising DURING a referral episode
+* rest.resource[+].type = #Observation
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-observation"
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-periodontal-observation"
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[+].type = #DiagnosticReport
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-diagnosticreport"
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[+].type = #Encounter
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-encounter"
+* rest.resource[=].interaction[+].code = #create
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 

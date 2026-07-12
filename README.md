@@ -1,4 +1,4 @@
-`1`# FHIR R4 Interface Scratchpad
+# FHIR R4 Interface Scratchpad
 
 Welcome to the ODE interface design repository. This repository is our **design-first API
 directory** (similar to Swagger) to establish consensus on our payloads and the interface
@@ -72,6 +72,40 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full protocol and view owners
   consensus. Frozen.
 * **`CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `CHANGELOG.md`** — the sync
   protocol that keeps the four views honest.
+* **`CLAUDE.md`, `.cursor/rules/`** — the same protocol encoded for AI coding agents
+  (Claude Code and Cursor), so they propagate a change across all four views and update the
+  crosswalk automatically. See "Working with AI agents" below.
+
+---
+
+## Working with AI agents
+
+The sync protocol is machine-readable, so you can hand the busywork of keeping the four
+views aligned to an agent:
+
+* **Claude Code** reads [`CLAUDE.md`](./CLAUDE.md) automatically.
+* **Cursor** reads [`.cursor/rules/`](./.cursor/rules) — `ode-interface-sync.mdc` always
+  applies; `fsh-authoring.mdc` and `openapi-and-swagger.mdc` attach when you open those files.
+
+Both encode the same invariants: the shared anchors, the three directional referral profiles
+and their must-support, the imaging push/pull rule, the "should-support" convention, and the
+deferred gaps the agent must **not** invent shapes for. The core instruction is *no view
+changes alone* — change one view and the agent propagates to the others and updates
+`interfaces/INTERFACE-VIEWS.md`.
+
+Promotion to `staging-transition/` stays **human-only** — the agents are told never to do it
+unprompted.
+
+Example prompts:
+
+```
+Add a pre-procedure INR observation as should-populate on the dental-to-dental referral.
+Propagate across all four views and update the crosswalk.
+```
+```
+The dental-to-medical referral should also carry the patient's Epworth score as must-support.
+Update every view and tell me what changed.
+```
 
 ## Building the FSH
 

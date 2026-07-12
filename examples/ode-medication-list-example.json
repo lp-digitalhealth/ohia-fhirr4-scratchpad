@@ -1,0 +1,199 @@
+{
+  "resourceType": "Bundle",
+  "id": "ode-medication-list-example",
+  "type": "collection",
+  "timestamp": "2026-06-30T14:05:00Z",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01",
+      "resource": {
+        "resourceType": "Patient",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://hospital.example.org/mrn",
+            "value": "ODE-000417"
+          }
+        ],
+        "name": [
+          {
+            "family": "Rivera",
+            "given": ["Jordan", "A"]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1968-04-12"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e02",
+      "resource": {
+        "resourceType": "Practitioner",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "http://hl7.org/fhir/sid/us-npi",
+            "value": "9941339108"
+          }
+        ],
+        "name": [
+          {
+            "family": "Nguyen",
+            "given": ["Amy"],
+            "suffix": ["MD"]
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e03",
+      "resource": {
+        "resourceType": "List",
+        "meta": {
+          "profile": [
+            "https://oralhealthalliance.net/fhir/StructureDefinition/ode-medication-list"
+          ]
+        },
+        "status": "current",
+        "mode": "snapshot",
+        "title": "Medication List",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "10160-0",
+              "display": "History of Medication use Narrative"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01",
+          "display": "Jordan A Rivera"
+        },
+        "date": "2026-06-30T14:05:00Z",
+        "source": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e02",
+          "display": "Amy Nguyen, MD"
+        },
+        "entry": [
+          { "item": { "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e04" } },
+          { "item": { "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e05" } },
+          { "item": { "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e06" } }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e04",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "reportedBoolean": false,
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "860975",
+              "display": "metFORMIN hydrochloride 500 MG Oral Tablet"
+            }
+          ],
+          "text": "Metformin 500 mg tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01"
+        },
+        "authoredOn": "2026-03-10",
+        "requester": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e02",
+          "display": "Amy Nguyen, MD"
+        },
+        "dosageInstruction": [
+          { "text": "Take 1 tablet by mouth twice daily with meals." }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e05",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "reportedBoolean": true,
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "261551",
+              "display": "insulin lispro 100 UNT/ML Injectable Solution"
+            }
+          ],
+          "text": "Insulin lispro (patient-reported)"
+        },
+        "subject": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01"
+        },
+        "authoredOn": "2026-02-01",
+        "requester": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01",
+          "display": "Jordan A Rivera (self-reported)"
+        },
+        "dosageInstruction": [
+          { "text": "Per sliding scale with meals, as reported by the patient." }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e06",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "reportedBoolean": false,
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "314076",
+              "display": "lisinopril 10 MG Oral Tablet"
+            }
+          ],
+          "text": "Lisinopril 10 mg tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e01"
+        },
+        "authoredOn": "2025-11-15",
+        "requester": {
+          "reference": "urn:uuid:2b90dd2c-9f2a-4f7e-9c33-0a1b2c3d4e02",
+          "display": "Amy Nguyen, MD"
+        },
+        "dosageInstruction": [
+          { "text": "Take 1 tablet by mouth once daily." }
+        ]
+      }
+    }
+  ]
+}
