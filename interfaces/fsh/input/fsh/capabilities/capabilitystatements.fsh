@@ -98,6 +98,16 @@ Usage: #definition
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 
+// Claims sharing — the non-financial, claims-ready package
+* rest.resource[+].type = #ExplanationOfBenefit
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-claim"
+* rest.resource[=].documentation = "Non-financial claims-sharing package. NOT a claim submission: status=draft, outcome=queued, no pricing or adjudication. A receiving system constructs its own 837D / 837P / priced FHIR Claim from it."
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+* rest.resource[=].searchParam[+].name = "patient"
+* rest.resource[=].searchParam[=].type = #reference
+
 // Notifications
 * rest.resource[+].type = #Subscription
 * rest.resource[=].interaction[+].code = #create

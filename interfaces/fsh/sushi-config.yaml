@@ -32,6 +32,10 @@ dependencies:
   # REQUIRED — the profiles inherit US Core 6.1.0 (verified: us-core-servicerequest,
   # us-core-observation-clinical-result, etc. all exist in 6.1.0).
   hl7.fhir.us.core: 6.1.0
+  # REQUIRED — ODEDentalClaim inherits CARIN Blue Button's
+  # C4BB-ExplanationOfBenefit-Professional-NonClinician-Basis profile.
+  # Confirm the version your build resolves; 2.0.0 is the C4BB STU2 line.
+  hl7.fhir.us.carin-bb: 2.0.0
   # NEEDED for instances/search-and-subscription.fsh (SubscriptionTopic on R4).
   # Package id/version depends on your build; add the Topic-based Subscriptions
   # Backport package for R4, or comment out the SubscriptionTopic if unused:
