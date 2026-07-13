@@ -48,7 +48,7 @@ Shared anchors (identical in all four views):
 | SNODENT | `http://www.ada.org/snodent` |
 | ICD-10-CM | `http://hl7.org/fhir/sid/icd-10-cm` |
 | CPT | `http://www.ama-assn.org/go/cpt` |
-| HCPCS | `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
+| HCPCS | `http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` — **`http://`, NOT `https://`** (THO Official URL; corrected via JIRA UP-472). Never normalize to https. |
 | FHIR version | R4 4.0.1 · US Core 6.1.0 |
 
 ## The model (get this right)
@@ -96,13 +96,40 @@ fabricate a coding**. This is how radiation dosimetry (UC01) is handled — an `
 with `code.text`, `valueQuantity` in Gy (UCUM), `bodySite` = the tooth. A convention, not a
 profile: if a code system emerges it slots into `code.coding` with no breaking change.
 
+## Claims sharing — the SECOND profile family
+
+The referral profiles carry **clinical** data. `ODEDentalClaim` carries the **claims-ready**
+package for reimbursement.
+
+- Inherits **CARIN Blue Button** `C4BB-ExplanationOfBenefit-Professional-NonClinician-Basis`,
+  extended with the two oral elements the base lacks: **tooth `bodySite`** and **dual CDT+CPT
+  coding**.
+- **NON-FINANCIAL by design**: `status` always `draft`, `outcome` always `queued`, and **no
+  `unitPrice` / `net` / `total` / `adjudication`**. Never add pricing without an explicit
+  decision. The shape accepts financial elements later without restructuring.
+- Must-support: CDT coding **always required** (HIPAA) + CPT/HCPCS wherever a crosswalk is
+  knowable; **tooth `bodySite` required**; `item.modifier` (carries **KX** — required by CMS
+  from 2025-07-01 and by Humana MA); `diagnosis` **required when the receiving payer is
+  medical**; `careTeam` with **both `referring` and `rendering`** (that joint presence *is*
+  the care-coordination evidence CMS and Humana require).
+- ODE deliberately does **not** decide the claim form (837D/837P/paper) or which code system
+  a payer wants. Don't "helpfully" add that.
+
+## TOOTH CODE SYSTEM — use the real one
+
+`http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem` (HL7 THO, ADA
+Universal/National numbering). **ODE defines NO tooth code system.** The old interim
+`http://ohia-codes.org/CodeSystem/ode-tooth-universal` is **RETIRED** — never reintroduce it.
+
 ## Deferred gaps — do NOT invent shapes for these
 
 Leave as documented gaps unless explicitly asked to model them:
 - **AI screening result** (Observation + RiskAssessment) — must-support on
   `ODEDentalToMedicalReferral`; blocks UC05.
-- **FDI ISO 3950** tooth numbering (permission pending; Universal is the default).
-- *(Radiation dosimetry is no longer a gap — see the uncoded-findings rule above.)*
+- From the CMS-1500 crosswalk: secondary coverage, diagnosis pointer (24E), signature/consent
+  (12/13, 31), EPSDT (24H), prior-auth number (23).
+- *(Radiation dosimetry: resolved via the uncoded-findings rule. FDI ISO 3950: CLOSED — ADA
+  confirmed FDI is not used for US dental data.)*
 
 ## Conventions
 

@@ -24,5 +24,5 @@ this folder is the design-first drop zone for terminology discussion and tables.
 | SNODENT | `http://www.ada.org/snodent` |
 | ICD-10-CM | `http://hl7.org/fhir/sid/icd-10-cm` |
 | CPT | `http://www.ama-assn.org/go/cpt` |
-| HCPCS | `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
+| HCPCS | `http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
 | Referral id | `urn:ohia:referral-id` |

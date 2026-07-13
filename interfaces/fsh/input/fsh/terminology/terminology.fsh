@@ -45,23 +45,40 @@ Description: "All CDT procedure codes. CDT is licensed by the ADA; the IG refere
 * include codes from system $cdt
 
 
-CodeSystem: ODEToothUniversal
-Id: ode-tooth-universal
-Title: "ODE Tooth — Universal/National Numbering"
-Description: "Permanent teeth 1-32 and primary teeth A-T. Interim OHIA-published system; FDI ISO 3950 to be added pending permission. Fragment shown here — the published artifact enumerates the full 1-32 and A-T set."
-* ^url = "http://ohia-codes.org/CodeSystem/ode-tooth-universal"
-* ^status = #draft
-* ^content = #fragment
-* #1  "Tooth 1"  "Maxillary right third molar"
-* #19 "Tooth 19" "Mandibular left first molar"
-* #30 "Tooth 30" "Mandibular right first molar"
+// ---------------------------------------------------------------------------
+// TOOTH DESIGNATION — uses the REAL HL7 THO code system, not an ODE invention.
+// http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem
+// (ADA Universal/National numbering 1-32, deciduous A-T, supernumerary codes;
+// backed by an ADA-HL7 Statement of Understanding.)
+// The former interim `ohia-codes.org/CodeSystem/ode-tooth-universal` is RETIRED —
+// ODE reuses published terminology rather than reinventing it. Confirmed with the
+// ADA that FDI (ISO 3950) notation is not used for US dental data, so the FDI
+// alternate is no longer a gap.
+// ---------------------------------------------------------------------------
 
 ValueSet: ODEToothVS
 Id: ode-tooth-vs
-Title: "ODE Tooth Value Set"
+Title: "ODE Tooth Designation (ADA Universal, via HL7 THO)"
+Description: "Tooth designation using the ADA Universal/National Tooth Designation System as published in HL7 Terminology (THO). ODE does not define its own tooth code system."
 * ^url = "http://ohia-codes.org/ValueSet/ode-tooth-vs"
-* include codes from system ODEToothUniversal
+* include codes from system $tooth
+
 
 // Document type codes used on the 360X boundary are reused from LOINC:
 //   57133-1  Referral Note      -> inbound  PCC-55
 //   11488-4  Consultation Note  -> outbound PCC-57 / PCC-59
+
+
+// ---------------------------------------------------------------------------
+// CLAIMS SHARING terminology (reused from CARIN Blue Button / THO — not invented)
+// ---------------------------------------------------------------------------
+
+ValueSet: ODEClaimCareTeamRoleVS
+Id: ode-claim-careteam-role-vs
+Title: "ODE Claim Care Team Role"
+Description: "Care-team roles on the claims-sharing EOB, from CARIN Blue Button. BOTH `referring` and `rendering`/`performing` are expected — their joint presence is the evidence of medical-dental care coordination that CMS and Humana each require."
+* ^url = "http://ohia-codes.org/ValueSet/ode-claim-careteam-role-vs"
+* include codes from system $c4bbRole
+
+// Modifiers (e.g. KX) come from HCPCS Level II: $hcpcs
+// Claim type comes from THO claim-type: $claimType

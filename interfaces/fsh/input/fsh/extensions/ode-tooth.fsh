@@ -7,8 +7,8 @@
 Extension: ODETooth
 Id: ode-tooth
 Title: "Tooth designation"
-Description: "Identifies a tooth by a recognized numbering system. Universal/National numbering is the ODE default; FDI Two-Digit (ISO 3950) is an alternate pending permission."
+Description: "Identifies a tooth using the ADA Universal Tooth Designation System as published in HL7 Terminology (THO). ODE does not define its own tooth code system. Confirmed with the ADA that FDI (ISO 3950) notation is not used for US dental data."
 * ^context[+].type = #element
 * ^context[=].expression = "Element"
 * value[x] only CodeableConcept
-* valueCodeableConcept from ODEToothVS (extensible)
+* valueCodeableConcept from ODEToothVS (required)

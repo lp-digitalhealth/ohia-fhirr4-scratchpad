@@ -41,9 +41,12 @@ Alias: $sct          = http://snomed.info/sct
 Alias: $loinc        = http://loinc.org
 Alias: $cdt          = http://www.ada.org/cdt
 Alias: $snodent      = http://www.ada.org/snodent
+Alias: $tooth        = http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem
+Alias: $c4bbEOBProf  = http://hl7.org/fhir/us/carin-bb/StructureDefinition/C4BB-ExplanationOfBenefit-Professional-NonClinician-Basis
+Alias: $c4bbRole     = http://hl7.org/fhir/us/carin-bb/CodeSystem/C4BBClaimCareTeamRole
 Alias: $icd10cm      = http://hl7.org/fhir/sid/icd-10-cm
 Alias: $cpt          = http://www.ama-assn.org/go/cpt
-Alias: $hcpcs        = https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets
+Alias: $hcpcs        = http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets
 Alias: $npi          = http://hl7.org/fhir/sid/us-npi
 Alias: $taskcode     = http://hl7.org/fhir/CodeSystem/task-code
 Alias: $smart        = http://terminology.hl7.org/CodeSystem/restful-security-service
@@ -93,6 +96,8 @@ Alias: $referralId   = urn:ohia:referral-id
 | **Dental procedure (CDT + tooth)** | `ODEDentalProcedure` | **ODE** |
 | **Periodontal finding** | `ODEPeriodontalObservation` | **ODE** |
 | **Medication list** | `ODEMedicationList` (List) + US Core MedicationRequest | **ODE** thin + **reuse** |
+| **Claims sharing** (reimbursement) | `ODEDentalClaim` (EOB) | **ODE**, inherits **CARIN BB** |
+| **Tooth designation** | ADA Universal Tooth Designation System (**HL7 THO**) | **reuse** — *ODE defines no tooth code system* |
 | **Tooth designation** | `ode-tooth` extension | **ODE** |
 | **Interim clinical content** (during the episode) | `ODEObservation`, `ODEDiagnosticReport`, `ODEEncounter` | **ODE** (all inherit US Core) |
 | **Attach interim content** | `$append-interim` on Task | **ODE** operation |
@@ -263,6 +268,60 @@ carries interim and outcome resources as the referral progresses.
 
 ---
 
+## 2.6 The second profile family — claims sharing (`ODEDentalClaim`)
+
+Everything above carries **clinical** data. But a dental service that is *inextricably
+linked* to a covered medical service has to get **paid**, and that is a different artifact
+with different requirements. `ODEDentalClaim` is the **claims-ready package**.
+
+**It inherits CARIN Blue Button** — specifically
+`C4BB-ExplanationOfBenefit-Professional-NonClinician-Basis` — and extends it with the two
+things the base profile has no notion of: **tooth `bodySite`** and **dual CDT+CPT coding**.
+Same discipline as the rest of ODE: constrain a published profile, don't reinvent one.
+
+**It is deliberately non-financial.**
+
+| Element | Value | Why |
+|---------|-------|-----|
+| `status` | always `draft` | this is **not** a submission |
+| `outcome` | always `queued` | adjudication has not occurred |
+| `unitPrice` / `net` / `total` / `adjudication` | **absent** | ODE does not make pricing or adjudication decisions on an implementer's behalf |
+
+A receiving system — a medical or dental payer, or a clearinghouse — constructs **its own**
+final claim from this package: an 837D, an 837P/CMS-1500, or a fully-priced FHIR `Claim`.
+The shape is designed to accept financial elements in a later iteration **without
+restructuring**.
+
+### Must-support
+
+| Element | Requirement | Why |
+|---------|-------------|-----|
+| `item.productOrService` | **CDT coding always required** (HIPAA); **CPT/HCPCS alongside it wherever a crosswalk is knowable** | CMS lets the provider choose the form ("use the appropriate CDT or CPT codes"); the dual coding is what lets a *medical* payer adjudicate |
+| `item.bodySite` | **REQUIRED** — ADA Universal Tooth Designation System (**HL7 THO**) | the oral extension of the CARIN BB base |
+| `item.modifier` | **MS** — carries **KX** | CMS requires KX (as of 2025-07-01) on whichever claim form is used; Humana MA requires KX appended to a CDT code |
+| `diagnosis` | present when known; **REQUIRED when the receiving payer is medical** | CMS requires an ICD-10 code on the dental claim form as of 2025-07-01 |
+| `careTeam` | **MS — both `referring` and `rendering`** | their joint presence *is* the evidence of medical–dental care coordination that CMS and Humana each require |
+| `insurance`, `provider`, `insurer`, `patient` | **MS** | standard claim identity |
+| `supportingInfo[servicefacility]` | **MS** | CMS-1500 Box 32 |
+| `item.quantity` | **MS** | count only — **not** pricing |
+
+> **Why KX matters.** Both CMS and Humana require the KX modifier to assert that a dental
+> service is *inextricably linked* to a covered medical service. Before `item.modifier`
+> existed in this schema, **a compliant submission could not have been generated at all** —
+> for either pathway. `Claim.item.modifier` / `ExplanationOfBenefit.item.modifier` is a real
+> base-FHIR element; it was adopted, not invented.
+
+> **What ODE deliberately does *not* decide:** which claim form (837D / 837P / paper) or
+> which code system a given payer wants. CMS itself doesn't fix this — *"use the appropriate
+> CDT or CPT codes"* — so a schema that pre-decided it would be **less** correct, not more.
+> Format selection is downstream work for the receiving system.
+
+See `claims/CMS1500-crosswalk.md` (box-by-box against the CMS-1500) and
+`claims/evidence-sufficiency.md` (field-by-field proof against CMS's and Humana's own
+stated requirements) in this repo.
+
+---
+
 ## 3. The API contract — CapabilityStatements
 
 Two actors. The **ODE Referral Recipient (Fulfiller) Server** is what a dental ODE Native
@@ -360,6 +419,13 @@ Usage: #definition
 * rest.resource[=].interaction[+].code = #search-type
 * rest.resource[+].type = #Encounter
 * rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-encounter"
+* rest.resource[=].interaction[+].code = #create
+* rest.resource[=].interaction[+].code = #read
+* rest.resource[=].interaction[+].code = #search-type
+
+// Claims sharing — the non-financial, claims-ready package
+* rest.resource[+].type = #ExplanationOfBenefit
+* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-claim"
 * rest.resource[=].interaction[+].code = #create
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
@@ -638,6 +704,41 @@ Description: "A visit within a referral episode. basedOn links back to the origi
 ```
 
 ```
+Profile: ODEDentalClaim
+Parent: $c4bbEOBProf
+Id: ode-dental-claim
+Title: "ODE Dental Claim (claims-sharing EOB)"
+Description: "Non-financial, oral-optimized ExplanationOfBenefit inheriting CARIN Blue Button's Professional/NonClinician Basis profile. NOT a submission: status=draft, outcome=queued, no pricing or adjudication."
+* status = #draft (exactly)
+* use = #claim (exactly)
+* outcome = #queued (exactly)
+* patient 1..1 MS
+* insurer 1..1 MS
+* provider 1..1 MS
+* careTeam 1..* MS
+* careTeam.role from ODEClaimCareTeamRoleVS (extensible)
+* careTeam ^short = "MUST include both referring and rendering — the evidence of medical-dental coordination CMS and Humana each require."
+* diagnosis MS
+* diagnosis ^short = "REQUIRED when the receiving payer is medical (CMS requires ICD-10 on the dental claim form as of 2025-07-01)."
+* insurance MS
+* supportingInfo MS
+* item 1..* MS
+* item.productOrService 1..1 MS
+* item.productOrService.coding contains cdt 1..1 MS and cpt 0..* MS and hcpcs 0..*
+* item.productOrService.coding[cdt].system = $cdt (exactly)
+* item.productOrService.coding[cpt].system = $cpt (exactly)
+* item.bodySite 1..1 MS
+* item.bodySite from ODEToothVS (required)
+* item.modifier MS
+* item.modifier ^short = "Carries the KX modifier — required by CMS (from 2025-07-01) and by Humana MA."
+* item.servicedDate MS
+* item.locationCodeableConcept MS
+* item.quantity MS
+* item.quantity ^short = "Count only — NOT pricing."
+// No unitPrice / net / total / adjudication — non-financial by design.
+```
+
+```
 Extension: ODETooth
 Id: ode-tooth
 Title: "Tooth designation"
@@ -717,7 +818,11 @@ Da Vinci, nothing custom:
    arise *mid-referral*; `POST [base]` (transaction Bundle) is for the **initial submission
    only**. An informal request for the data is a **`Task.note`** (the COW "letter"
    mechanism); the request itself has no dedicated resource.
-7. **Coverage & PA (where in scope)** — CRD `order-sign` CDS Hook, DTR `Questionnaire`,
+7. **Share a claims-ready package** — `POST [base]/ExplanationOfBenefit` with an
+   `ODEDentalClaim` (§2.6). Non-financial: `status=draft`, `outcome=queued`, no pricing. The
+   receiving payer or clearinghouse builds its own 837D / 837P / priced FHIR `Claim` from it.
+   Retrieve with `GET [base]/ExplanationOfBenefit?patient={id}`.
+8. **Coverage & PA (where in scope)** — CRD `order-sign` CDS Hook, DTR `Questionnaire`,
    PAS `Claim`/`ClaimResponse`, Plan-Net directory query — all reused from Da Vinci.
 
 ---
@@ -768,21 +873,21 @@ Description: "All CDT procedure codes. CDT is licensed by the ADA; the IG refere
 ```
 
 ```
-CodeSystem: ODEToothUniversal
-Id: ode-tooth-universal
-Title: "ODE Tooth — Universal/National Numbering"
-Description: "Permanent teeth 1–32 and primary teeth A–T. Interim OHIA-published system; FDI ISO 3950 to be added pending permission. (Codes abbreviated here; the published artifact enumerates 1–32 and A–T.)"
-* ^url = "http://ohia-codes.org/CodeSystem/ode-tooth-universal"
-* ^status = #draft
-* ^content = #fragment
-* #1  "Tooth 1"  "Maxillary right third molar"
-* #19 "Tooth 19" "Mandibular left first molar"
-* #30 "Tooth 30" "Mandibular right first molar"
+// TOOTH — the REAL HL7 THO code system. ODE defines NO tooth code system.
+// http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem
+// The former interim `ohia-codes.org/CodeSystem/ode-tooth-universal` is RETIRED.
 
 ValueSet: ODEToothVS
 Id: ode-tooth-vs
+Title: "ODE Tooth Designation (ADA Universal, via HL7 THO)"
 * ^url = "http://ohia-codes.org/ValueSet/ode-tooth-vs"
-* include codes from system ODEToothUniversal
+* include codes from system $tooth
+
+ValueSet: ODEClaimCareTeamRoleVS
+Id: ode-claim-careteam-role-vs
+Title: "ODE Claim Care Team Role (CARIN BB)"
+* ^url = "http://ohia-codes.org/ValueSet/ode-claim-careteam-role-vs"
+* include codes from system $c4bbRole
 ```
 
 ```
@@ -820,8 +925,11 @@ rather than guessed at:
   `ode-screening-result` profile (Observation + `RiskAssessment`) and a method/Provenance
   pattern. This is **must-support on `ODEDentalToMedicalReferral`**, so it's the gap that
   most directly blocks the dental→medical direction.
-- **Tooth numbering under FDI ISO 3950** — alternate to the Universal default, pending
-  permission; the `ODEToothUniversal` system is the interim home.
+- ~~**Tooth numbering under FDI ISO 3950**~~ — **CLOSED.** Confirmed with the ADA that FDI
+  notation is **not used for US dental data**. ODE uses the **ADA Universal Tooth Designation
+  System as published in HL7 THO** (`http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem`),
+  and the interim `ohia-codes.org` tooth CodeSystem is **retired** — ODE reuses published
+  terminology rather than inventing it.
 
 ---
 
