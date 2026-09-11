@@ -588,18 +588,25 @@ paths:
       summary: Retrieve a supporting document/image (dental→dental pull)
       description: 'The **support-a-pull** path for **dental→dental**: the referral references the image
         and the receiver retrieves it here (or via a CDex Task Data Request). Dental systems can serve
-        a pull; medical-side receivers instead get a push (see $submit-attachment).
+        a pull; medical-side receivers instead get a push (see $submit-attachment). This path also serves
+        the **patient-submitted intraoral photo** (`ODEIntraoralPhotoDocumentReference`) — a non-radiographic,
+        patient-authored `image/jpeg` that, in teledentistry, travels inline in the referral submission
+        Bundle (`POST /`) `supportingInfo` and is retrievable here. The affected tooth is correlated via a
+        companion `ODEObservation` (`bodySite` + `derivedFrom` → the photo), since R4 DocumentReference has
+        no `bodySite`.
 
         '
       parameters:
       - $ref: '#/components/parameters/id'
       responses:
         '200':
-          description: DocumentReference (ODEReferralDocumentReference)
+          description: DocumentReference (ODEReferralDocumentReference or ODEIntraoralPhotoDocumentReference)
           content:
             application/fhir+json:
               schema:
-                type: object
+                oneOf:
+                - $ref: '#/components/schemas/ODEIntraoralPhotoDocumentReference'
+                - type: object
         '404':
           $ref: '#/components/responses/NotFound'
   /DocumentReference/$submit-attachment:
@@ -1204,6 +1211,15 @@ components:
               type: string
         bodySite:
           $ref: '#/components/schemas/CodeableConcept'
+        derivedFrom:
+          type: array
+          description: 'R4 tooth-image correlation. Because R4 DocumentReference has no bodySite,
+            an oral image is bound to a tooth by this Observation: bodySite = the tooth AND
+            derivedFrom -> the ODEIntraoralPhotoDocumentReference. Receivers read "which tooth is
+            this photo of?" off this Observation. This coded correlation is also what survives a
+            360X/C-CDA bridge; the on-image body-site does not.'
+          items:
+            $ref: '#/components/schemas/Reference'
         note:
           type: array
           items:
@@ -1211,6 +1227,73 @@ components:
             properties:
               text:
                 type: string
+      additionalProperties: true
+    ODEIntraoralPhotoDocumentReference:
+      type: object
+      description: 'Patient-submitted, non-radiographic intraoral photograph captured on a phone/web
+        app during a teledentistry encounter and conveyed with a dental->dental referral. Modeled as
+        US Core DocumentReference, NOT R4 Media (Media is removed in R5/R6; DocumentReference is stable
+        across R4->R6; US Core profiles DocumentReference; bytes survive a 360X/C-CDA bridge as embedded
+        multimedia). Explicitly NOT the DICOM radiograph path (ImagingStudy + WADO-RS), which appears
+        only at the in-office visit. R4 DocumentReference has no bodySite: the affected tooth is
+        correlated via a companion ODEObservation (bodySite = tooth + derivedFrom -> this DocumentReference).'
+      x-fhir-profile: https://oralhealthalliance.net/fhir/StructureDefinition/ode-intraoral-photo-documentreference
+      required:
+      - resourceType
+      - status
+      - content
+      properties:
+        resourceType:
+          type: string
+          enum:
+          - DocumentReference
+        status:
+          type: string
+          example: current
+        category:
+          type: array
+          description: Clinical photography (patient-submitted image).
+          items:
+            $ref: '#/components/schemas/CodeableConcept'
+        type:
+          allOf:
+          - $ref: '#/components/schemas/CodeableConcept'
+          description: SHOULD-populate LOINC 72170-4 "Photographic image" (extensible).
+        subject:
+          $ref: '#/components/schemas/Reference'
+        author:
+          type: array
+          description: Patient-authored for patient-submitted photos (Patient); the capturing app/provider
+            may also be recorded.
+          items:
+            $ref: '#/components/schemas/Reference'
+        content:
+          type: array
+          items:
+            type: object
+            properties:
+              attachment:
+                type: object
+                description: contentType image/jpeg; inline base64 data for small images, url/Binary for large.
+                properties:
+                  contentType:
+                    type: string
+                    example: image/jpeg
+                  data:
+                    type: string
+                    format: byte
+                  url:
+                    type: string
+                  title:
+                    type: string
+        context:
+          type: object
+          description: context.encounter -> the virtual (teledentistry) encounter the photo was captured during.
+          properties:
+            encounter:
+              type: array
+              items:
+                $ref: '#/components/schemas/Reference'
       additionalProperties: true
     ODEDentalClaim:
       type: object

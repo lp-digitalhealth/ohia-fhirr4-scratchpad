@@ -53,9 +53,10 @@ Usage: #definition
 * rest.resource[=].searchParam[+].name = "referral-id"
 * rest.resource[=].searchParam[=].type = #token
 
-// DocumentReference — supporting data / imaging (CDex-aligned)
+// DocumentReference — supporting data / imaging (CDex-aligned) + patient-submitted intraoral photo
 * rest.resource[+].type = #DocumentReference
-* rest.resource[=].supportedProfile = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-documentreference"
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-documentreference"
+* rest.resource[=].supportedProfile[+] = "https://oralhealthalliance.net/fhir/StructureDefinition/ode-intraoral-photo-documentreference"
 * rest.resource[=].interaction[+].code = #read
 * rest.resource[=].interaction[+].code = #search-type
 * rest.resource[=].interaction[+].code = #create

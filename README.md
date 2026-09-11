@@ -10,7 +10,7 @@ This is a **scratchpad**, not the IG. Nothing here is normative. Work here reach
 |---|---|
 | **FHIR version** | R4 (`4.0.1`) |
 | **Inherits** | US Core 6.1.0 |
-| **Current interface version** | `0.3.0-draft` |
+| **Current interface version** | `0.4.0-draft` |
 | **License** | [CC0 1.0](./LICENSE) — per HL7/FHIR IG convention |
 | **Destination** | HL7 Oral Health Data Exchange IG (PIE Work Group, PSS-2714) |
 

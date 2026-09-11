@@ -93,6 +93,7 @@ Alias: $referralId   = urn:ohia:referral-id
 | **Referral — dental→medical** | `ODEDentalToMedicalReferral` (ICD-10-CM + CPT/HCPCS MS; SNODENT should) | **ODE** |
 | **Referral workflow** (extends COW) | `ODEReferralTask` | **ODE** |
 | **Supporting data / imaging** | `ODEReferralDocumentReference` | **ODE** (CDex-aligned) |
+| **Patient-submitted intraoral photo** | `ODEIntraoralPhotoDocumentReference` | **ODE** (US Core DocumentReference; teledentistry) |
 | **Dental procedure (CDT + tooth)** | `ODEDentalProcedure` | **ODE** |
 | **Periodontal finding** | `ODEPeriodontalObservation` | **ODE** |
 | **Medication list** | `ODEMedicationList` (List) + US Core MedicationRequest | **ODE** thin + **reuse** |
@@ -103,7 +104,9 @@ Alias: $referralId   = urn:ohia:referral-id
 | **Attach interim content** | `$append-interim` on Task | **ODE** operation |
 | **Informal information request** | `Task.note` (COW "letter") | **reuse** COW pattern |
 | Radiation dosimetry (DDC) | `ODEObservation` with `code.text` — *see §2.5* | **addressed by convention** |
+| Patient-submitted intraoral photo (teledentistry) | `ODEIntraoralPhotoDocumentReference` + `ODEObservation` tooth correlation | **ODE** (US Core DocumentReference) |
 | AI-screening result | *(deferred — see §9)* | **gap** |
+| Patient-device → platform image *upload* path | *(deferred — see §9)* | **gap** |
 
 ---
 
@@ -152,7 +155,7 @@ Almost every ODE class inherits a US Core profile; only `Task` and `List` inheri
 | `AllergyIntolerance` | *(US Core AllergyIntolerance)* | US Core AllergyIntolerance |
 | `Observation` | `ODEPeriodontalObservation` | US Core Observation Clinical Result |
 | `Procedure` | `ODEDentalProcedure` | US Core Procedure |
-| `DocumentReference` | `ODEReferralDocumentReference` | US Core DocumentReference |
+| `DocumentReference` | `ODEReferralDocumentReference`; `ODEIntraoralPhotoDocumentReference` | US Core DocumentReference |
 | `Encounter` / `Provenance` | *(US Core)* | US Core |
 
 ### 2.2 `ODEMedicalToDentalReferral` — must-support
@@ -601,6 +604,34 @@ Description: "Supporting documents and images for a referral, modeled on CDex pr
 ```
 
 ```
+Profile: ODEIntraoralPhotoDocumentReference
+Parent: $ucDocRef
+Id: ode-intraoral-photo-documentreference
+Title: "ODE Intraoral Photo DocumentReference (patient-submitted)"
+Description: "A patient-submitted, non-radiographic intraoral photograph captured on a phone/web app during a teledentistry encounter and conveyed with a dental→dental referral. Modeled as US Core DocumentReference, NOT R4 Media (Media is removed in R5/R6, DocumentReference is stable across the R4→R6 path ODE must travel, US Core profiles DocumentReference, and the bytes survive a 360X/C-CDA bridge as embedded multimedia). Explicitly NOT the DICOM radiograph path (ImagingStudy + WADO-RS), which appears only at the in-office visit. R4 DocumentReference has no bodySite: the affected tooth is correlated via a companion ODEObservation (bodySite = tooth + derivedFrom → this DocumentReference)."
+* category MS   // clinical photography (patient-submitted)
+* type MS       // SHOULD-populate LOINC 72170-4 "Photographic image" (extensible)
+* type = $loinc#72170-4
+* content 1..* MS
+* content.attachment MS
+* content.attachment.contentType 1..1 MS
+* content.attachment.contentType = #image/jpeg
+* content.attachment.data MS   // inline base64 for small images
+* content.attachment.url MS    // url/Binary for large images
+* author MS
+* author only Reference($ucPatient or $ucPractitioner or $ucPractitionerRole or $ucOrganization)  // Patient-authored for patient-submitted photos
+* context MS
+* context.encounter MS   // the virtual (teledentistry) encounter the photo was captured during
+```
+
+> **Tooth correlation in R4 (normative pattern).** R4 `DocumentReference` has no `bodySite`,
+> so "which tooth is this photo of?" is carried on a companion **`ODEObservation`**:
+> `bodySite` = the tooth (via the `ode-tooth` extension) **and** `derivedFrom` → the
+> `ODEIntraoralPhotoDocumentReference`. Receivers read the tooth off the Observation, not the
+> image. This coded correlation is also the part that survives a 360X/C-CDA bridge — the
+> on-image body-site does not (see §9 and `INTERFACE-VIEWS.md` deferred gaps).
+
+```
 Profile: ODEDentalProcedure
 Parent: $ucProcedure
 Id: ode-dental-procedure
@@ -930,6 +961,24 @@ rather than guessed at:
   System as published in HL7 THO** (`http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem`),
   and the interim `ohia-codes.org` tooth CodeSystem is **retired** — ODE reuses published
   terminology rather than inventing it.
+- ~~**Patient-submitted intraoral photo — profile + R4 tooth correlation**~~ — **RESOLVED
+  (§2.1 / §4).** The patient-authored teledentistry photo is now modeled as
+  `ODEIntraoralPhotoDocumentReference` (US Core DocumentReference, `image/jpeg`,
+  `author` = Patient, `context.encounter` → the virtual encounter), and the tooth is bound via
+  a companion `ODEObservation` (`bodySite` + `derivedFrom` → the photo) since R4
+  `DocumentReference` has no `bodySite`.
+- **Patient-device → platform write path** (teledentistry image *upload*) — **still open.** Of
+  the three transport hops — (1) patient mobile/web app → teledentistry platform, (2) platform
+  → dental PMS (governed CDex provider-to-provider), (3) PMS chart correlation/reuse — hop (1),
+  the patient-write path, has **no governing HL7 IG**: who may write, `Provenance`
+  (`author` = Patient or the capturing `Device`), and consent are unspecified. ODE could later
+  specify a patient-authored-image `POST` with `Provenance`, independent of any bridge. Left as
+  a documented gap, not modeled.
+- **360X / C-CDA on-image body-site lossiness** (documentation, expected) — when the intraoral
+  photo crosses a 360X/C-CDA bridge, the **photo bytes survive** as embedded multimedia but the
+  **tooth correlation survives only as the coded `ODEObservation`** (above), not attached to the
+  image. This is expected behavior, documented so implementers don't treat the loss of
+  on-image body-site as a defect.
 
 ---
 

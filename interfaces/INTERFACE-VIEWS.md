@@ -36,6 +36,7 @@ so a change to one is easy to mirror in the others during finalization.
 | Dental→medical | §2.4 / §4 | schema `ODEDentalToMedicalReferral` | `profiles/referrals.fsh` |
 | Workflow Task | §4 `ODEReferralTask` | schema `ODEReferralTask` | `profiles/workflow.fsh` |
 | Supporting doc/imaging | §4 `ODEReferralDocumentReference` | `$submit-attachment` body / `DocumentReference` | `profiles/clinical.fsh` |
+| Intraoral photo (patient-submitted) | §2.1 / §4 / §9 `ODEIntraoralPhotoDocumentReference` | schema `ODEIntraoralPhotoDocumentReference` / `GET /DocumentReference/{id}` | `profiles/clinical.fsh` |
 | Dental procedure (CDT) | §4 `ODEDentalProcedure` | (referenced) | `profiles/clinical.fsh` |
 | Periodontal obs | §4 `ODEPeriodontalObservation` | (referenced) | `profiles/clinical.fsh` |
 | Medication list | §4 `ODEMedicationList` | schema `ODEMedicationList` | `profiles/clinical.fsh` |
@@ -101,6 +102,24 @@ the general rule for **any finding with no established code system**.
 **FDI ISO 3950 — CLOSED.** Confirmed with the ADA that FDI notation is not used for US
 dental data. ODE uses the **ADA Universal Tooth Designation System from HL7 THO**; the
 interim `ohia-codes.org` tooth CodeSystem is **retired**.
+
+**Patient-submitted intraoral photo — RESOLVED (profile) + normative R4 tooth-correlation
+pattern.** The teledentistry photo is `ODEIntraoralPhotoDocumentReference` (US Core
+DocumentReference, `image/jpeg`, `author` = Patient, `context.encounter`). Because R4
+`DocumentReference` has **no `bodySite`**, the tooth is bound via a companion `ODEObservation`
+carrying `bodySite` (`ode-tooth`) **and** `derivedFrom` → the photo. All four views assert this:
+FSH (`ODEObservation.derivedFrom` + `^comment`), narrative (§2.1/§4/§9), OpenAPI
+(`ODEObservation.derivedFrom` + `ODEIntraoralPhotoDocumentReference` schema), and the Swagger
+regen. `Media` is deliberately not used (removed in R5/R6; no US Core profile).
+
+Still open: **patient-device → platform image upload path** — hop (1) of the transport chain
+(patient app → teledentistry platform → PMS) has no governing HL7 IG; who may write,
+`Provenance` (`author` = Patient/`Device`), and consent are unspecified. Not modeled — any view
+that later adds a patient-authored-image `POST` must update the other three.
+
+Documentation-only (expected, not a defect): across a **360X/C-CDA bridge** the photo bytes
+survive as embedded multimedia but the tooth correlation survives only as the coded
+`ODEObservation`, not attached to the image.
 
 Still open: the **AI screening-result shape** (Observation + RiskAssessment) that is
 must-support on `ODEDentalToMedicalReferral`. Also open, from the claims crosswalk: secondary

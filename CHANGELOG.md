@@ -26,6 +26,24 @@ Propagated across all four views + crosswalk + agent files.
   crosswalk, and the CMS/Humana sufficiency proof).
 - New dependency: `hl7.fhir.us.carin-bb`.
 
+### Added — interface v0.4.0 · **Patient-submitted intraoral photo** (ISSUE-002 Gap A + B)
+Propagated across all four views + crosswalk. Surfaced by UC04a teledentistry.
+
+- **`ODEIntraoralPhotoDocumentReference`** (`Parent` US Core DocumentReference) — a
+  patient-submitted, non-radiographic intraoral photograph captured on a phone/web app during a
+  teledentistry encounter and conveyed with a dental→dental referral. Constrains
+  `content.attachment.contentType` = `image/jpeg`, `type` = LOINC `72170-4`, `author` = Patient,
+  `context.encounter` = the virtual visit. Added to the `DocumentReference` `supportedProfile`,
+  the pull path (`GET /DocumentReference/{id}`), and the referral Bundle `supportingInfo`.
+- **`Media` deliberately not used** — removed in R5/R6 while `DocumentReference` is stable
+  across R4→R6, US Core profiles `DocumentReference`, and the bytes survive a 360X/C-CDA bridge.
+- **Normative R4 tooth-correlation pattern (Gap B)** — R4 `DocumentReference` has no
+  `bodySite`, so the tooth is bound via a companion `ODEObservation` (`bodySite` = `ode-tooth`
+  **and** `derivedFrom` → the photo). Added `derivedFrom` (MS) + `^comment` to `ODEObservation`.
+- **Two deferred gaps documented (not modeled)**: patient-device → platform image *upload* path
+  (no governing HL7 IG) and expected 360X/C-CDA on-image body-site lossiness.
+- Distinct from the DICOM radiograph path (`ImagingStudy` + WADO-RS), an in-office-only artifact.
+
 ### Changed — tooth terminology now uses the real HL7 code system
 - **`ode-tooth-universal` (our invented CodeSystem) is RETIRED.** ODE now uses
   **`http://terminology.hl7.org/CodeSystem/ADAUniversalToothDesignationSystem`** — the ADA

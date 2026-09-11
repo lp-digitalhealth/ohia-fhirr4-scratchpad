@@ -5,6 +5,31 @@ Tracks changes to the ODE interface across the four views, and promotions to
 
 ## [Unreleased]
 
+### Changed — interface v0.3.0 → v0.4.0
+Propagated across **all four views** + crosswalk. Implements Gap A + Gap B of ISSUE-002
+(patient-submitted intraoral photo), surfaced by UC04a teledentistry.
+
+- **New profile `ODEIntraoralPhotoDocumentReference`** (`Parent` US Core DocumentReference) —
+  a patient-submitted, non-radiographic intraoral photograph captured on a phone/web app during
+  a teledentistry encounter and conveyed with a dental→dental referral. Constrains
+  `content.attachment.contentType` = `image/jpeg`, `type` = LOINC `72170-4` (Photographic
+  image), `author` = Patient (patient-authored), and `context.encounter` = the virtual visit.
+  Added to the `DocumentReference` `supportedProfile` in the CapabilityStatement, to the pull
+  path (`GET /DocumentReference/{id}`), and rides in the referral submission Bundle
+  `supportingInfo`.
+- **`Media` deliberately not used** — removed in R5/R6 while `DocumentReference` is stable
+  across the R4→R6 path, US Core profiles `DocumentReference` (there is no US Core Media
+  profile), and the bytes survive a 360X/C-CDA bridge either way.
+- **Normative R4 tooth-correlation pattern (Gap B)** — R4 `DocumentReference` has no
+  `bodySite`, so the affected tooth is bound via a companion `ODEObservation` carrying
+  `bodySite` (`ode-tooth`) **and** `derivedFrom` → the photo. Added `derivedFrom` (MS) +
+  `^comment` to `ODEObservation` (FSH), a `derivedFrom` array to the OpenAPI/Swagger
+  `ODEObservation` schema, and the pattern to the narrative and crosswalk.
+- **Two new deferred gaps documented (not modeled)**: the patient-device → platform image
+  *upload* path (no governing HL7 IG) and the expected 360X/C-CDA on-image body-site lossiness.
+- Distinct from the DICOM radiograph path (`ImagingStudy` + WADO-RS), which is a separate
+  artifact that appears only at the in-office visit.
+
 ### Changed — interface v0.2.0 → v0.3.0 (from testing)
 Propagated across **all four views** + crosswalk + agent files.
 

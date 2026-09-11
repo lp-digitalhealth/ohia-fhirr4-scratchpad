@@ -18,6 +18,31 @@ Description: "Supporting documents and images for a referral, modeled on CDex pr
 * context MS
 
 
+Profile: ODEIntraoralPhotoDocumentReference
+Parent: $ucDocRef
+Id: ode-intraoral-photo-documentreference
+Title: "ODE Intraoral Photo DocumentReference (patient-submitted)"
+Description: "A patient-submitted, non-radiographic intraoral photograph captured on a phone/web app during a teledentistry encounter and conveyed with a dental-to-dental referral. Modeled as US Core DocumentReference, NOT R4 Media: Media is removed in R5 and stays removed in R6 while DocumentReference is stable across the R4->R6 path ODE must travel; US Core profiles DocumentReference (there is no US Core Media profile); and the bytes survive a 360X/C-CDA bridge as embedded multimedia either way. This is explicitly NOT the DICOM radiograph path (ImagingStudy + WADO-RS), which is a different artifact that appears only at the in-office visit. R4 DocumentReference has NO bodySite element, so the affected tooth is correlated via a companion ODEObservation (bodySite = tooth + derivedFrom -> this DocumentReference) — see ODEObservation."
+* category MS
+* category ^short = "Clinical photography (patient-submitted image)."
+* type MS
+* type = $loinc#72170-4
+* type ^short = "LOINC 72170-4 Photographic image (SHOULD-populate; extensible)."
+* content 1..* MS
+* content.attachment MS
+* content.attachment.contentType 1..1 MS
+* content.attachment.contentType = #image/jpeg
+* content.attachment.data MS
+* content.attachment.url MS
+* content.attachment ^short = "Inline base64 data for small images; url/Binary for large. contentType image/jpeg."
+* author MS
+* author only Reference($ucPatient or $ucPractitioner or $ucPractitionerRole or $ucOrganization)
+* author ^short = "Patient-authored for patient-submitted photos (Patient); the capturing app/provider may also be recorded."
+* context MS
+* context.encounter MS
+* context.encounter ^short = "The virtual (teledentistry) encounter the photo was captured during."
+
+
 Profile: ODEDentalProcedure
 Parent: $ucProcedure
 Id: ode-dental-procedure
@@ -90,6 +115,9 @@ Description: "A clinical finding arising during a referral episode, inheriting U
 * value[x] MS
 * bodySite MS
 * bodySite.extension contains ODETooth named tooth 0..1 MS
+* derivedFrom MS
+* derivedFrom ^short = "R4 tooth-image correlation: point at the intraoral photo DocumentReference this finding is read from."
+* derivedFrom ^comment = "NORMATIVE R4 tooth-correlation pattern. Because R4 DocumentReference has no bodySite element, an oral image is bound to a tooth by a companion Observation that carries bodySite (ODETooth) AND derivedFrom -> the ODEIntraoralPhotoDocumentReference. A receiver answers 'which tooth is this photo of?' off this Observation, not off the image resource. This coded correlation is also the part that survives a 360X/C-CDA bridge — the on-image body-site does not (see the deferred-gap note in INTERFACE-VIEWS.md)."
 * note MS
 * note ^short = "Free-text note — e.g. that the value was obtained via an informal inter-provider information request (COW 'letter' pattern) rather than a formal order."
 
