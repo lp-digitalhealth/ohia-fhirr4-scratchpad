@@ -113,7 +113,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full protocol and view owners
 | Terminology namespace | `http://ohia-codes.org` |
 | Referral identifier | `urn:ohia:referral-id` |
 | CDT · SNODENT | `http://www.ada.org/cdt` · `http://www.ada.org/snodent` |
-| ICD-10-CM · CPT · HCPCS | `http://hl7.org/fhir/sid/icd-10-cm` · `http://www.ama-assn.org/go/cpt` · `http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
+| ICD-10-CM · CPT · HCPCS | `http://hl7.org/fhir/sid/icd-10-cm` · `http://www.ama-assn.org/go/cpt` · `https://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets` |
 
 ### Letting an agent do the syncing
 
