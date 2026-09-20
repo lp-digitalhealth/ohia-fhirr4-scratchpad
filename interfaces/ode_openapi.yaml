@@ -1,0 +1,1062 @@
+openapi: 3.0.3
+info:
+  title: ODE Referral API
+  version: "0.1.0"
+  description: |
+    Generated from the ode-ig FSH source (input/fsh/**) to give a REST/OpenAPI view of the
+    ODE Referral interface for understanding purposes only.
+
+    **FSH remains the single source of truth for this IG** (see CLAUDE.md). This file is a
+    derived artifact, not hand-authored input — do not edit the FSH to match this file; instead
+    regenerate/update this file when the FSH changes.
+
+    Scope: only the Referral interface is modeled (what ODEReferralRecipientServer /
+    ODEReferralInitiatorClient CapabilityStatements + the ode-append-interim OperationDefinition
+    + the ode-referral-id SearchParameter actually declare). Claims submission
+    (Claim/$submit, 837D/P/I) is described in CLAUDE.md as planned/in-progress work but has no
+    FSH profiles in input/fsh yet, so it is intentionally left out of this contract.
+    Topic-based Subscriptions/notifications are likewise deferred in the FSH (see
+    instances/search-parameters.fsh) and are not modeled here.
+  contact:
+    name: Oral Health Interoperability Alliance (OHIA)
+    url: https://oralhealthalliance.net/fhir
+externalDocs:
+  description: ODE Implementation Guide
+  url: https://oralhealthalliance.net/fhir
+
+servers:
+  - url: https://{base}/fhir
+    variables:
+      base:
+        default: example.org
+        description: Base URL of a conformant ODE Referral Recipient (fulfiller) server.
+
+tags:
+  - name: Transaction
+    description: Initial referral submission (system-level interactions).
+  - name: Task
+    description: The ODE workflow object — single source of truth for referral state.
+  - name: ServiceRequest
+    description: The referral order (three directional profiles).
+  - name: DocumentReference
+    description: Supporting data / imaging, plus the patient-submitted intraoral photo.
+  - name: Patient
+    description: US Core Patient context.
+  - name: Medications
+    description: Medication list conveyed with a referral.
+  - name: Clinical
+    description: Findings/content arising during a referral episode (Observation, DiagnosticReport, Encounter).
+
+security:
+  - SMARTOnFHIR: []
+
+paths:
+  /:
+    post:
+      tags: [Transaction]
+      summary: Submit a referral transaction Bundle
+      description: |
+        System-level `transaction`/`batch` interaction (ODEReferralRecipientServer
+        CapabilityStatement `rest.interaction`). Used for the initial referral submission only —
+        a bundle containing the referral ServiceRequest, the coordination Task, and any
+        input resources (e.g. ODEMedicationList, AllergyIntolerance, supporting
+        DocumentReferences/intraoral photos). Use POST /Task/{id}/$append-interim for
+        clinical content that arises mid-referral, not another transaction Bundle.
+      operationId: submitReferralTransaction
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/Bundle"
+      responses:
+        "200":
+          description: Transaction processed; response Bundle with per-entry results.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /Task/{id}:
+    get:
+      tags: [Task]
+      summary: Read a referral Task by id
+      operationId: readTask
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The referral Task.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/OperationOutcome"
+    put:
+      tags: [Task]
+      summary: Update a referral Task
+      description: >-
+        Full update of Task state (e.g. status/businessStatus transitions not covered by
+        $append-interim).
+      operationId: updateTask
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/Task"
+      responses:
+        "200":
+          description: Updated Task.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+    patch:
+      tags: [Task]
+      summary: Partially update a referral Task
+      operationId: patchTask
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        content:
+          application/json-patch+json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        "200":
+          description: Updated Task.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /Task:
+    get:
+      tags: [Task]
+      summary: Search referral Tasks
+      operationId: searchTask
+      parameters:
+        - $ref: "#/components/parameters/referralId"
+        - name: status
+          in: query
+          description: Task.status (token search).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bundle of matching Tasks.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+
+  /Task/{id}/$append-interim:
+    post:
+      tags: [Task]
+      summary: Append interim clinical content to a referral
+      description: |
+        ODEAppendInterim (`OperationDefinition/ode-append-interim`). Creates the supplied
+        clinical resources (ODEEncounter, ODEDiagnosticReport, ODEObservation, ...), attaches
+        them to the referral Task's `output`, and advances `businessStatus` (typically to
+        `interim-results`). The ODE-native equivalent of a 360X PCC-59 Interim Consultation
+        Note — usable with no bridge. Use the initial transaction Bundle (POST /) for the
+        initial referral submission only, not for interim content.
+      operationId: appendInterim
+      parameters:
+        - $ref: "#/components/parameters/id"
+      requestBody:
+        required: true
+        description: A Parameters resource carrying the `content` collection Bundle.
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/AppendInterimParameters"
+      responses:
+        "200":
+          description: >-
+            The updated referral Task, with `output` populated and `businessStatus` advanced.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /ServiceRequest/{id}:
+    get:
+      tags: [ServiceRequest]
+      summary: Read a referral ServiceRequest by id
+      operationId: readServiceRequest
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The referral order (one of the three directional profiles).
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "404":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /ServiceRequest:
+    get:
+      tags: [ServiceRequest]
+      summary: Search referral ServiceRequests
+      operationId: searchServiceRequest
+      parameters:
+        - $ref: "#/components/parameters/referralId"
+      responses:
+        "200":
+          description: Bundle of matching ServiceRequests.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+    post:
+      tags: [ServiceRequest]
+      summary: Create a referral ServiceRequest
+      description: >-
+        Client-role (ODEReferralInitiatorClient) create interaction, exercised standalone by
+        clients that do not use the transaction-Bundle path. Must conform to one of
+        ODEMedicalToDentalReferral / ODEDentalToDentalReferral / ODEDentalToMedicalReferral.
+      operationId: createServiceRequest
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequest"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /DocumentReference/{id}:
+    get:
+      tags: [DocumentReference]
+      summary: Read a supporting document/image (support-a-pull)
+      description: >-
+        The dental->dental support-a-pull target: the recipient retrieves supporting
+        data/imaging by GET rather than receiving it inline or via a separate push.
+      operationId: readDocumentReference
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The DocumentReference.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/DocumentReference"
+        "404":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /DocumentReference:
+    get:
+      tags: [DocumentReference]
+      summary: Search supporting documents/images
+      operationId: searchDocumentReference
+      responses:
+        "200":
+          description: Bundle of matching DocumentReferences.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+    post:
+      tags: [DocumentReference]
+      summary: Create a supporting document/image
+      operationId: createDocumentReference
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/DocumentReference"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/DocumentReference"
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /DocumentReference/$submit-attachment:
+    post:
+      tags: [DocumentReference]
+      summary: Push a supporting attachment (Da Vinci CDex)
+      description: >-
+        Da Vinci CDex `$submit-attachment` — the separate-push imaging path used whenever the
+        receiver is on the medical side (medical->dental, dental->medical). Dental->dental
+        instead uses a pull (GET /DocumentReference/{id}). See
+        http://hl7.org/fhir/us/davinci-cdex/OperationDefinition/submit-attachment.
+      operationId: submitAttachment
+      externalDocs:
+        url: http://hl7.org/fhir/us/davinci-cdex/OperationDefinition/submit-attachment
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              type: object
+              description: Da Vinci CDex $submit-attachment Parameters resource.
+      responses:
+        "200":
+          description: Attachment accepted.
+        "400":
+          $ref: "#/components/responses/OperationOutcome"
+
+  /Patient/{id}:
+    get:
+      tags: [Patient]
+      summary: Read a Patient (US Core)
+      operationId: readPatient
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The Patient.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+
+  /Patient:
+    get:
+      tags: [Patient]
+      summary: Search Patients (US Core)
+      operationId: searchPatient
+      responses:
+        "200":
+          description: Bundle of matching Patients.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+
+  /MedicationRequest:
+    get:
+      tags: [Medications]
+      summary: Search medication requests (US Core), by patient
+      operationId: searchMedicationRequest
+      parameters:
+        - name: patient
+          in: query
+          required: false
+          description: US Core MedicationRequest entries referenced by an ODEMedicationList.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bundle of matching MedicationRequests.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+
+  /MedicationRequest/{id}:
+    get:
+      tags: [Medications]
+      summary: Read a medication request (US Core)
+      operationId: readMedicationRequest
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The MedicationRequest.
+          content:
+            application/fhir+json:
+              schema:
+                type: object
+
+  /List/{id}:
+    get:
+      tags: [Medications]
+      summary: Read a medication list
+      description: >-
+        ODEMedicationList — a point-in-time snapshot of the patient's medications, conveyed
+        with a referral, whose entries reference US Core MedicationRequest.
+      operationId: readMedicationList
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The List.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/List"
+
+  /List:
+    get:
+      tags: [Medications]
+      summary: Search medication lists
+      operationId: searchList
+      responses:
+        "200":
+          description: Bundle of matching Lists.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+
+  /Observation:
+    get:
+      tags: [Clinical]
+      summary: Search clinical observations arising during a referral
+      operationId: searchObservation
+      responses:
+        "200":
+          description: Bundle of matching Observations.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+    post:
+      tags: [Clinical]
+      summary: Create a clinical observation
+      description: >-
+        Directly, or as part of an interim-content bundle via
+        POST /Task/{id}/$append-interim.
+      operationId: createObservation
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/Observation"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Observation"
+
+  /Observation/{id}:
+    get:
+      tags: [Clinical]
+      summary: Read a clinical observation
+      operationId: readObservation
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The Observation.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Observation"
+
+  /DiagnosticReport:
+    get:
+      tags: [Clinical]
+      summary: Search diagnostic reports arising during a referral
+      operationId: searchDiagnosticReport
+      responses:
+        "200":
+          description: Bundle of matching DiagnosticReports.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+    post:
+      tags: [Clinical]
+      summary: Create a diagnostic report
+      description: >-
+        Directly, or as part of an interim-content bundle via
+        POST /Task/{id}/$append-interim.
+      operationId: createDiagnosticReport
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/DiagnosticReport"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticReport"
+
+  /DiagnosticReport/{id}:
+    get:
+      tags: [Clinical]
+      summary: Read a diagnostic report
+      operationId: readDiagnosticReport
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The DiagnosticReport.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticReport"
+
+  /Encounter:
+    get:
+      tags: [Clinical]
+      summary: Search encounters within a referral episode
+      operationId: searchEncounter
+      responses:
+        "200":
+          description: Bundle of matching Encounters.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+    post:
+      tags: [Clinical]
+      summary: Create an encounter
+      description: >-
+        Directly, or as part of an interim-content bundle via
+        POST /Task/{id}/$append-interim.
+      operationId: createEncounter
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: "#/components/schemas/Encounter"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Encounter"
+
+  /Encounter/{id}:
+    get:
+      tags: [Clinical]
+      summary: Read an encounter
+      operationId: readEncounter
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: The Encounter.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: "#/components/schemas/Encounter"
+
+components:
+  securitySchemes:
+    SMARTOnFHIR:
+      type: oauth2
+      description: >-
+        rest.security.service = SMART-on-FHIR on both the ODEReferralRecipientServer and
+        ODEReferralInitiatorClient CapabilityStatements. Flow details are deployment-specific;
+        see the SMART App Launch IG.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://example.org/auth/authorize
+          tokenUrl: https://example.org/auth/token
+          scopes:
+            system/*.read: Read access
+            system/*.write: Write access
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: FHIR logical id.
+    referralId:
+      name: referral-id
+      in: query
+      required: false
+      description: >-
+        ode-referral-id SearchParameter (token) — the ODE referral identifier, system
+        urn:ohia:referral-id, on ServiceRequest and Task.
+      schema:
+        type: string
+
+  responses:
+    OperationOutcome:
+      description: Error.
+      content:
+        application/fhir+json:
+          schema:
+            $ref: "#/components/schemas/OperationOutcome"
+
+  schemas:
+    # ---- Generic FHIR envelopes -------------------------------------------------
+    Bundle:
+      type: object
+      description: FHIR Bundle (used for transaction/batch requests and search-set responses).
+      properties:
+        resourceType:
+          type: string
+          enum: [Bundle]
+        type:
+          type: string
+          enum: [transaction, batch, transaction-response, batch-response, searchset]
+        entry:
+          type: array
+          items:
+            type: object
+
+    OperationOutcome:
+      type: object
+      properties:
+        resourceType:
+          type: string
+          enum: [OperationOutcome]
+        issue:
+          type: array
+          items:
+            type: object
+
+    CodeableConcept:
+      type: object
+      properties:
+        coding:
+          type: array
+          items:
+            type: object
+            properties:
+              system: { type: string }
+              code: { type: string }
+              display: { type: string }
+        text: { type: string }
+
+    Identifier:
+      type: object
+      properties:
+        system: { type: string }
+        value: { type: string }
+
+    Reference:
+      type: object
+      properties:
+        reference: { type: string }
+        display: { type: string }
+
+    # ---- Profiled resources (from input/fsh/**) --------------------------------
+    ODETooth:
+      type: object
+      description: >-
+        ode-tooth extension — a code from the ADA Universal Tooth Designation System
+        (ODEToothVS), carried on ServiceRequest/Observation.bodySite.
+      properties:
+        url:
+          type: string
+          enum:
+            - https://oralhealthalliance.net/fhir/StructureDefinition/ode-tooth
+        valueCodeableConcept:
+          $ref: "#/components/schemas/CodeableConcept"
+
+    ServiceRequest:
+      type: object
+      description: >-
+        The dental-medical referral order (ode-referral-servicerequest), inheriting US Core
+        ServiceRequest. Do not instantiate the base profile directly — use one of
+        ODEMedicalToDentalReferral / ODEDentalToDentalReferral / ODEDentalToMedicalReferral
+        (declared via meta.profile). Coding is directional per the receiving clinician's
+        world (medical vs. dental).
+      properties:
+        resourceType:
+          type: string
+          enum: [ServiceRequest]
+        meta:
+          type: object
+          properties:
+            profile:
+              type: array
+              items:
+                type: string
+                enum:
+                  - https://oralhealthalliance.net/fhir/StructureDefinition/ode-medical-to-dental-referral
+                  - https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-dental-referral
+                  - https://oralhealthalliance.net/fhir/StructureDefinition/ode-dental-to-medical-referral
+        identifier:
+          type: array
+          description: >-
+            Must include a referralId slice (system urn:ohia:referral-id) — the 360X<->COW
+            loop key (v2 ORC-2 on the wire).
+          items:
+            $ref: "#/components/schemas/Identifier"
+          minItems: 1
+        status:
+          type: string
+          description: >-
+            Base FHIR request-status (required binding). The 360X<->COW crosswalk exercises
+            active -> completed / revoked in practice.
+        intent:
+          type: string
+          enum: [order]
+        category:
+          type: array
+          items:
+            $ref: "#/components/schemas/CodeableConcept"
+        code:
+          allOf:
+            - $ref: "#/components/schemas/CodeableConcept"
+          description: >-
+            The requested service. Coding system(s) depend on direction: CPT/HCPCS
+            (medical-to-dental, dental-to-medical), CDT + optional SNODENT
+            (dental-to-dental).
+        reasonCode:
+          type: array
+          description: >-
+            ICD-10-CM required on medical-to-dental and dental-to-medical; should-support
+            (not required) on dental-to-dental.
+          items:
+            $ref: "#/components/schemas/CodeableConcept"
+        bodySite:
+          type: array
+          description: >-
+            Carries the ode-tooth extension. Required (1..*, tooth 1..1) on
+            dental-to-dental; should-support elsewhere.
+          items:
+            type: object
+            allOf:
+              - $ref: "#/components/schemas/CodeableConcept"
+            properties:
+              extension:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ODETooth"
+        subject:
+          $ref: "#/components/schemas/Reference"
+        requester:
+          $ref: "#/components/schemas/Reference"
+        supportingInfo:
+          type: array
+          description: >-
+            Referral/clinical note, and directionally: screening/finding result
+            (dental-to-medical, required), periodontal charting (dental-to-dental).
+            Imaging is NOT embedded here except the patient-submitted intraoral photo on
+            dental-to-dental; otherwise imaging follows via a separate CDex push or a
+            support-a-pull GET.
+          items:
+            $ref: "#/components/schemas/Reference"
+      required: [resourceType, identifier, intent, code, subject]
+
+    Task:
+      type: object
+      description: >-
+        ODEReferralTask (ode-referral-task) — the ODE workflow object and single source of
+        truth for referral state, inheriting the HL7 Clinical Order Workflows (COW)
+        Coordination Task profile.
+      properties:
+        resourceType:
+          type: string
+          enum: [Task]
+        identifier:
+          type: array
+          description: Must include a referralId slice (system urn:ohia:referral-id).
+          items:
+            $ref: "#/components/schemas/Identifier"
+          minItems: 1
+        status:
+          type: string
+          description: >-
+            Base task-status (required binding); this build exercises requested |
+            accepted | in-progress | completed | rejected | cancelled.
+        businessStatus:
+          allOf:
+            - $ref: "#/components/schemas/CodeableConcept"
+          description: >-
+            Extensibly bound to ODEReferralSubStatusVS: received | scheduled | accepted |
+            declined | interim-results | appointment-booked | appointment-noshow |
+            outcome-final | cancelled.
+        intent:
+          type: string
+          enum: [order]
+        code:
+          $ref: "#/components/schemas/CodeableConcept"
+        focus:
+          $ref: "#/components/schemas/Reference"
+        for:
+          $ref: "#/components/schemas/Reference"
+        requester:
+          $ref: "#/components/schemas/Reference"
+        owner:
+          description: >-
+            Scoped to the accepting-provider identity only (who accepted). Do not populate
+            at initial intake, before a fulfiller has accepted.
+          $ref: "#/components/schemas/Reference"
+        note:
+          type: array
+          description: >-
+            Free-text notes, including an informal inter-provider information request
+            (COW "letter" pattern).
+          items:
+            type: object
+            properties:
+              text: { type: string }
+        input:
+          type: array
+          description: >-
+            The referral package on intake (e.g. Condition, MedicationRequest,
+            ODEMedicationList, AllergyIntolerance).
+          items:
+            type: object
+        output:
+          type: array
+          description: >-
+            Interim or outcome resources attached as the referral progresses
+            (e.g. via $append-interim).
+          items:
+            type: object
+      required: [resourceType, identifier, intent, code, focus, for]
+
+    AppendInterimParameters:
+      type: object
+      description: Parameters resource for OperationDefinition/ode-append-interim.
+      properties:
+        resourceType:
+          type: string
+          enum: [Parameters]
+        parameter:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                enum: [content]
+              resource:
+                $ref: "#/components/schemas/Bundle"
+                description: >-
+                  A collection Bundle of the interim clinical resources to attach
+                  (ODEEncounter, ODEDiagnosticReport, ODEObservation).
+
+    DocumentReference:
+      type: object
+      description: >-
+        ODEReferralDocumentReference / ODEIntraoralPhotoDocumentReference — supporting
+        documents and images for a referral, inheriting US Core DocumentReference.
+      properties:
+        resourceType:
+          type: string
+          enum: [DocumentReference]
+        meta:
+          type: object
+          properties:
+            profile:
+              type: array
+              items:
+                type: string
+                enum:
+                  - https://oralhealthalliance.net/fhir/StructureDefinition/ode-referral-documentreference
+                  - https://oralhealthalliance.net/fhir/StructureDefinition/ode-intraoral-photo-documentreference
+        category:
+          type: array
+          items:
+            $ref: "#/components/schemas/CodeableConcept"
+        type:
+          $ref: "#/components/schemas/CodeableConcept"
+        content:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              attachment:
+                type: object
+                properties:
+                  contentType:
+                    type: string
+                    description: >-
+                      Required. image/jpeg fixed on the intraoral-photo profile.
+                  data:
+                    type: string
+                    format: byte
+                    description: Small inline bytes.
+                  url:
+                    type: string
+                    description: >-
+                      A retrievable pointer (FHIR Binary, or an ImagingStudy/WADO-RS
+                      endpoint for DICOM). Large DICOM must use ImagingStudy + WADO-RS,
+                      never inline bytes.
+        author:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reference"
+        context:
+          type: object
+          properties:
+            encounter:
+              type: array
+              items:
+                $ref: "#/components/schemas/Reference"
+      required: [resourceType, content]
+
+    Patient:
+      type: object
+      description: US Core Patient.
+      properties:
+        resourceType:
+          type: string
+          enum: [Patient]
+        identifier:
+          type: array
+          items:
+            $ref: "#/components/schemas/Identifier"
+        name:
+          type: array
+          items:
+            type: object
+
+    List:
+      type: object
+      description: >-
+        ODEMedicationList (ode-medication-list) — a point-in-time medication list conveyed
+        with a referral. Inherits base FHIR List (US Core has no List profile).
+      properties:
+        resourceType:
+          type: string
+          enum: [List]
+        status:
+          type: string
+          enum: [current]
+        mode:
+          type: string
+          enum: [snapshot]
+        code:
+          allOf:
+            - $ref: "#/components/schemas/CodeableConcept"
+          description: Fixed to LOINC 10160-0 (History of Medication use).
+        subject:
+          $ref: "#/components/schemas/Reference"
+        date:
+          type: string
+          format: date-time
+        source:
+          $ref: "#/components/schemas/Reference"
+        entry:
+          type: array
+          items:
+            type: object
+            properties:
+              item:
+                $ref: "#/components/schemas/Reference"
+                description: Reference to a US Core MedicationRequest.
+      required: [resourceType, status, mode, code, subject]
+
+    Encounter:
+      type: object
+      description: >-
+        ODEEncounter (ode-encounter) — a visit within a referral episode, inheriting US
+        Core Encounter. Created via POST /Encounter directly, or as part of an
+        interim-content bundle via $append-interim.
+      properties:
+        resourceType:
+          type: string
+          enum: [Encounter]
+        status:
+          type: string
+        class:
+          type: object
+        subject:
+          $ref: "#/components/schemas/Reference"
+        basedOn:
+          type: array
+          description: Reference(s) to the originating referral ServiceRequest.
+          items:
+            $ref: "#/components/schemas/Reference"
+      required: [resourceType, subject]
+
+    DiagnosticReport:
+      type: object
+      description: >-
+        ODEDiagnosticReport (ode-diagnosticreport) — a diagnostic report arising during a
+        referral episode, inheriting the US Core DiagnosticReport Note profile.
+      properties:
+        resourceType:
+          type: string
+          enum: [DiagnosticReport]
+        status:
+          type: string
+        code:
+          $ref: "#/components/schemas/CodeableConcept"
+        subject:
+          $ref: "#/components/schemas/Reference"
+        encounter:
+          $ref: "#/components/schemas/Reference"
+        conclusion:
+          type: string
+      required: [resourceType, status, code, subject]
+
+    Observation:
+      type: object
+      description: >-
+        ODEObservation (ode-observation) — a clinical finding arising during a referral
+        episode, inheriting US Core Observation Clinical Result. Where no established code
+        system exists for the finding, code.text is used rather than a fabricated coding
+        (e.g. site-specific radiation dosimetry for pre-radiation dental clearance).
+      properties:
+        resourceType:
+          type: string
+          enum: [Observation]
+        status:
+          type: string
+        code:
+          allOf:
+            - $ref: "#/components/schemas/CodeableConcept"
+          description: >-
+            Use code.text (NOT a fabricated coding) where no established code system
+            exists for the finding.
+        subject:
+          $ref: "#/components/schemas/Reference"
+        encounter:
+          $ref: "#/components/schemas/Reference"
+        valueQuantity:
+          type: object
+        valueCodeableConcept:
+          $ref: "#/components/schemas/CodeableConcept"
+        valueString:
+          type: string
+        bodySite:
+          type: object
+          allOf:
+            - $ref: "#/components/schemas/CodeableConcept"
+          properties:
+            extension:
+              type: array
+              items:
+                $ref: "#/components/schemas/ODETooth"
+        derivedFrom:
+          type: array
+          description: >-
+            R4 tooth-image correlation: points at the intraoral photo DocumentReference
+            this finding is read from (R4 DocumentReference has no bodySite).
+          items:
+            $ref: "#/components/schemas/Reference"
+        note:
+          type: array
+          items:
+            type: object
+            properties:
+              text: { type: string }
+      required: [resourceType, status, code, subject]
